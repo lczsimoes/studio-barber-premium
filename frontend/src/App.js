@@ -621,66 +621,212 @@ function PainelBarbeiro() {
           </>
         )}
 
-        {tela === "barbearia" && (
-          <>
-            <h1 style={{ color: theme.text, marginBottom: 22 }}>Dados da barbearia</h1>
-            <div style={{ ...styles.formCard, maxWidth: 580, background: theme.card, boxShadow: theme.shadow, border: `1px solid ${theme.border}` }}>
-              <label style={{ ...styles.label, color: theme.textSoft }}>Nome da barbearia</label>
-              <input style={inputStyle(theme)} value={perfil.nomeBarbearia} onChange={(e) => setPerfil((prev) => ({ ...prev, nomeBarbearia: e.target.value }))} />
+       {tela === "barbearia" && (
+  <>
+    <h1 style={{ color: theme.text, marginBottom: 24 }}>
+      Configurações Profissionais
+    </h1>
 
-              <label style={{ ...styles.label, color: theme.textSoft }}>WhatsApp do barbeiro</label>
-              <input style={inputStyle(theme)} value={perfil.whatsapp} onChange={(e) => setPerfil((prev) => ({ ...prev, whatsapp: e.target.value.replace(/\D/g, "") }))} placeholder="47999998888" />
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.2fr 0.8fr",
+        gap: 20,
+        alignItems: "start",
+      }}
+    >
+      <div
+        style={{
+          ...styles.formCard,
+          maxWidth: "100%",
+          background: theme.card,
+          boxShadow: theme.shadow,
+          border: `1px solid ${theme.border}`,
+        }}
+      >
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          Nome da barbearia
+        </label>
+        <input
+          style={inputStyle(theme)}
+          value={perfil.nomeBarbearia}
+          onChange={(e) =>
+            setPerfil((prev) => ({
+              ...prev,
+              nomeBarbearia: e.target.value,
+            }))
+          }
+        />
 
-              <label style={{ ...styles.label, color: theme.textSoft }}>Abertura</label>
-              <input style={inputStyle(theme)} type="time" value={perfil.abertura} onChange={(e) => setPerfil((prev) => ({ ...prev, abertura: e.target.value }))} />
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          WhatsApp do barbeiro
+        </label>
+        <input
+          style={inputStyle(theme)}
+          value={perfil.whatsapp}
+          onChange={(e) =>
+            setPerfil((prev) => ({
+              ...prev,
+              whatsapp: e.target.value.replace(/\D/g, ""),
+            }))
+          }
+          placeholder="47999998888"
+        />
 
-              <label style={{ ...styles.label, color: theme.textSoft }}>Fechamento</label>
-              <input style={inputStyle(theme)} type="time" value={perfil.fechamento} onChange={(e) => setPerfil((prev) => ({ ...prev, fechamento: e.target.value }))} />
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          Horário de abertura
+        </label>
+        <input
+          style={inputStyle(theme)}
+          type="time"
+          value={perfil.abertura}
+          onChange={(e) =>
+            setPerfil((prev) => ({
+              ...prev,
+              abertura: e.target.value,
+            }))
+          }
+        />
 
-              <label style={{ ...styles.label, color: theme.textSoft }}>Dias de funcionamento</label>
-              <div style={styles.diasWrap}>
-                {[
-                  ["segunda", "Segunda"],
-                  ["terca", "Terça"],
-                  ["quarta", "Quarta"],
-                  ["quinta", "Quinta"],
-                  ["sexta", "Sexta"],
-                  ["sabado", "Sábado"],
-                  ["domingo", "Domingo"],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    style={{
-                      ...styles.diaBtn,
-                      background: perfil.diasFuncionamento[key] ? theme.primary : theme.input,
-                      color: perfil.diasFuncionamento[key] ? "#111827" : theme.text,
-                      borderColor: theme.border,
-                    }}
-                    onClick={() => toggleDiaFuncionamento(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          Horário de fechamento
+        </label>
+        <input
+          style={inputStyle(theme)}
+          type="time"
+          value={perfil.fechamento}
+          onChange={(e) =>
+            setPerfil((prev) => ({
+              ...prev,
+              fechamento: e.target.value,
+            }))
+          }
+        />
 
-              <label style={{ ...styles.label, color: theme.textSoft }}>Logo</label>
-              <div style={styles.logoEditorWrap}>
-                <div style={styles.logoEditorPreview}>{logoPreview}</div>
-                <div style={styles.logoButtonsWrap}>
-                  <label style={{ ...styles.mainBtn, display: "inline-block", textAlign: "center" }}>
-                    Escolher logo
-                    <input type="file" accept="image/*" onChange={aoTrocarLogo} style={{ display: "none" }} />
-                  </label>
-                  <button style={styles.deleteBtn} type="button" onClick={() => setPerfil((prev) => ({ ...prev, logoBarbearia: "" }))}>Remover logo</button>
-                </div>
-              </div>
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          Dias de funcionamento
+        </label>
 
-              <button style={styles.mainBtn} onClick={salvarPerfil}>Salvar dados da barbearia</button>
-            </div>
-          </>
-        )}
+        <div style={styles.diasWrap}>
+          {[
+            ["segunda", "Segunda"],
+            ["terca", "Terça"],
+            ["quarta", "Quarta"],
+            ["quinta", "Quinta"],
+            ["sexta", "Sexta"],
+            ["sabado", "Sábado"],
+            ["domingo", "Domingo"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              style={{
+                ...styles.diaBtn,
+                background: perfil.diasFuncionamento[key]
+                  ? theme.primary
+                  : theme.input,
+                color: perfil.diasFuncionamento[key]
+                  ? "#111827"
+                  : theme.text,
+                borderColor: theme.border,
+              }}
+              onClick={() => toggleDiaFuncionamento(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
+        <label style={{ ...styles.label, color: theme.textSoft }}>
+          Logo da barbearia
+        </label>
+
+        <div style={styles.logoEditorWrap}>
+          <div style={styles.logoEditorPreview}>{logoPreview}</div>
+
+          <div style={styles.logoButtonsWrap}>
+            <label
+              style={{
+                ...styles.mainBtn,
+                display: "inline-block",
+                textAlign: "center",
+              }}
+            >
+              Escolher logo
+              <input
+                type="file"
+                accept="image/*"
+                onChange={aoTrocarLogo}
+                style={{ display: "none" }}
+              />
+            </label>
+
+            <button
+              style={styles.deleteBtn}
+              type="button"
+              onClick={() =>
+                setPerfil((prev) => ({
+                  ...prev,
+                  logoBarbearia: "",
+                }))
+              }
+            >
+              Remover
+            </button>
+          </div>
+        </div>
+
+        <button style={styles.mainBtn} onClick={salvarPerfil}>
+          Salvar configurações
+        </button>
+      </div>
+
+      <div
+        style={{
+          background: theme.card,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 18,
+          padding: 20,
+          boxShadow: theme.shadow,
+        }}
+      >
+        <h2 style={{ color: theme.text, marginTop: 0 }}>
+          Resumo profissional
+        </h2>
+
+        <p style={{ color: theme.textSoft }}>
+          <strong>Nome:</strong> {perfil.nomeBarbearia}
+        </p>
+
+        <p style={{ color: theme.textSoft }}>
+          <strong>WhatsApp:</strong>{" "}
+          {perfil.whatsapp || "Não configurado"}
+        </p>
+
+        <p style={{ color: theme.textSoft }}>
+          <strong>Horário:</strong>{" "}
+          {perfil.abertura} às {perfil.fechamento}
+        </p>
+
+        <p style={{ color: theme.textSoft }}>
+          <strong>Link:</strong>
+        </p>
+
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            background: theme.input,
+            color: theme.text,
+            wordBreak: "break-word",
+          }}
+        >
+          {linkPublico}
+        </div>
+      </div>
+    </div>
+  </>
+)}
         {tela === "link-publico" && (
           <>
             <h1 style={{ color: theme.text, marginBottom: 22 }}>Link do cliente</h1>
