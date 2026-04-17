@@ -14,9 +14,7 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("Mongo conectado (Atlas) ✅"))
   .catch((err) => console.error("Erro ao conectar no Mongo:", err));
-app.listen(PORT, () => {
-  console.log(`Servidor PRO rodando na porta ${PORT} 🚀`);
-});
+
 const criarSlug = (texto = "") => {
   return texto
     .normalize("NFD")
