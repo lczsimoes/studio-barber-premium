@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const backend = "http://localhost:3001";
+const backend = "https://studio-barber.onrender.com";
 
 const dark = {
   bg: "#020617",
