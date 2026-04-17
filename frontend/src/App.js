@@ -174,10 +174,10 @@ function PainelBarbeiro() {
 
     try {
       const [perfilRes, servicosRes, agendamentosRes, notificacoesRes] = await Promise.all([
-        axios.get(`${backend}/perfil/${userId}`, { timeout: 10000 }),
-        axios.get(`${backend}/servicos/${userId}`, { timeout: 10000 }),
-        axios.get(`${backend}/agendamentos/${userId}`, { timeout: 10000 }),
-        axios.get(`${backend}/notificacoes/${userId}`, { timeout: 10000 }),
+        axios.get(`${backend}/perfil/${userId}`, { timeout: 60000 }),
+        axios.get(`${backend}/servicos/${userId}`, { timeout: 60000 }),
+        axios.get(`${backend}/agendamentos/${userId}`, { timeout: 60000 }),
+        axios.get(`${backend}/notificacoes/${userId}`, { timeout: 60000 }),
       ]);
 
       setPerfil({
@@ -203,7 +203,7 @@ function PainelBarbeiro() {
 
   async function carregarNotificacoes(userId) {
     try {
-      const res = await axios.get(`${backend}/notificacoes/${userId}`, { timeout: 10000 });
+      const res = await axios.get(`${backend}/notificacoes/${userId}`, { timeout: 60000 });
       setNotificacoes(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Erro ao carregar notificações:", error);
@@ -217,32 +217,45 @@ function PainelBarbeiro() {
     }
 
     try {
-      await axios.post(`${backend}/register`, { email, senha }, { timeout: 10000 });
+      await axios.post(`${backend}/register`, { email, senha }, { timeout: 60000 });
       alert("Conta criada. Agora faça login.");
     } catch (error) {
       alert(error.response?.data?.message || "Erro ao cadastrar.");
     }
   }
 
-  async function login() {
-    if (!email.trim() || !senha.trim()) {
-      alert("Preencha email e senha.");
-      return;
-    }
-
-    try {
-      const res = await axios.post(`${backend}/login`, { email, senha }, { timeout: 10000 });
-      const user = {
-        id: res.data.userId,
-        email: res.data.email,
-      };
-      localStorage.setItem("usuario_barber", JSON.stringify(user));
-      setUsuario(user);
-      setTela("dashboard");
-    } catch (error) {
-      alert(error.response?.data?.message || "Erro no login.");
-    }
+async function login() {
+  if (!email.trim() || !senha.trim()) {
+    alert("Preencha email e senha.");
+    return;
   }
+
+  if (carregando) return; // evita clique duplo
+
+  try {
+    setCarregando(true);
+
+    const res = await axios.post(
+      `${backend}/login`,
+      { email, senha },
+      { timeout: 60000 }
+    );
+
+    const user = {
+      id: res.data.userId,
+      email: res.data.email,
+    };
+
+    localStorage.setItem("usuario_barber", JSON.stringify(user));
+    setUsuario(user);
+    setTela("dashboard");
+
+  } catch (error) {
+    console.error(error);
+    alert("Erro no login (servidor pode estar iniciando, tente novamente)");
+  } finally {
+  setCarregando(false);
+}
 
   function sair() {
     localStorage.removeItem("usuario_barber");
@@ -314,7 +327,7 @@ function PainelBarbeiro() {
           fechamento: perfil.fechamento,
           diasFuncionamento: perfil.diasFuncionamento,
         },
-        { timeout: 10000 }
+        { timeout: 60000 }
       );
 
       setPerfil((prev) => ({ ...prev, ...res.data.perfil }));
@@ -339,7 +352,7 @@ function PainelBarbeiro() {
           duracao: duracao.trim(),
           userId: usuario.id,
         },
-        { timeout: 10000 }
+        { timeout: 60000 }
       );
 
       setServicos((prev) => [res.data, ...prev]);
@@ -356,7 +369,7 @@ function PainelBarbeiro() {
     if (!confirmar) return;
 
     try {
-      await axios.delete(`${backend}/servicos/${id}`, { timeout: 10000 });
+      await axios.delete(`${backend}/servicos/${id}`, { timeout: 60000 });
       setServicos((prev) => prev.filter((item) => item._id !== id));
     } catch (error) {
       alert(error.response?.data?.message || "Erro ao apagar serviço.");
@@ -408,7 +421,7 @@ function PainelBarbeiro() {
       await axios.post(
         `${backend}/notificacoes/marcar-como-vistas/${usuario.id}`,
         {},
-        { timeout: 10000 }
+        { timeout: 60000 }
       );
       setNotificacoes([]);
       carregarTudo(usuario.id);
@@ -1149,7 +1162,7 @@ function PaginaPublica({ slug }) {
     setErro("");
 
     try {
-      const res = await axios.get(`${backend}/public/barbearias/${slug}`, { timeout: 10000 });
+      const res = await axios.get(`${backend}/public/barbearias/${slug}`, { timeout: 60000 });
       setBarbearia(res.data);
     } catch (error) {
       setErro(error.response?.data?.message || "Erro ao carregar página da barbearia.");
@@ -1165,7 +1178,7 @@ function PaginaPublica({ slug }) {
           userId: barbearia.userId,
           data,
         },
-        timeout: 10000,
+        timeout: 60000,
       });
       setHorariosOcupados(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
@@ -1242,7 +1255,7 @@ function PaginaPublica({ slug }) {
           data,
           horario,
         },
-        { timeout: 10000 }
+        { timeout: 60000 }
       );
 
       alert("Agendamento realizado com sucesso.");
