@@ -1,18 +1,22 @@
+require("dotenv").config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
 mongoose
-  .connect("mongodb://127.0.0.1:27017/barber")
-  .then(() => console.log("Mongo conectado ✅"))
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("Mongo conectado (Atlas) ✅"))
   .catch((err) => console.error("Erro ao conectar no Mongo:", err));
-
+app.listen(PORT, () => {
+  console.log(`Servidor PRO rodando na porta ${PORT} 🚀`);
+});
 const criarSlug = (texto = "") => {
   return texto
     .normalize("NFD")
