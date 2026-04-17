@@ -463,13 +463,13 @@ function PainelBarbeiro() {
             Sistema premium para barbearias com link de agendamento
           </div>
 
-          <h1 style={{ ...styles.heroTitle, color: theme.text }}>
-            Venda sua agenda online com um <span style={{ color: theme.primary }}>link próprio</span>
-          </h1>
+       <h1 style={{ ...styles.heroTitle, color: theme.text }}>
+  Transforme sua <span style={{ color: theme.primary }}>barbearia em um negócio premium</span>
+</h1>
 
-          <p style={{ ...styles.heroDescription, color: theme.textSoft }}>
-            O cliente agenda sozinho, o pedido cai automático no painel, o barbeiro recebe notificação e o WhatsApp vira seu canal de fechamento.
-          </p>
+<p style={{ ...styles.heroDescription, color: theme.textSoft }}>
+  Um sistema completo para barbearias que querem mais organização, presença profissional e agendamentos online sem complicação.
+</p>
 
           <div style={styles.heroActions}>
             <button style={{ ...styles.heroPrimaryBtn, background: theme.primary }} onClick={() => setTela("login")}>
