@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-const backend = "http://localhost:3001";
+const backend = "https://studio-barber-backend.onrender.com";
 
 const temaDark = {
   bg: "#020617",
@@ -1012,7 +1012,7 @@ export default function App() {
     background: theme.content,
   }}
 >
-  
+
 
               {tela === "dashboard" && (
           <>
