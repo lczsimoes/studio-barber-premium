@@ -1,8 +1,7 @@
-require("dotenv").config();
-
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
+const mongoose = require("mongoose");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -10,27 +9,40 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  console.error("❌ MONGO_URI não encontrada no .env");
+  process.exit(1);
+}
+
+/* =========================
+   CONEXÃO MONGODB
+========================= */
 mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("Mongo conectado (Atlas) ✅"))
-  .catch((err) => console.error("Erro ao conectar no Mongo:", err));
+  .connect(MONGO_URI)
+  .then(() => {
+    console.log("Mongo conectado (Atlas) ✅");
+  })
+  .catch((error) => {
+    console.error("Erro ao conectar no Mongo:", error);
+  });
 
-const criarSlug = (texto = "") => {
-  return texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-");
-};
-
-const UsuarioSchema = new mongoose.Schema(
+/* =========================
+   SCHEMAS
+========================= */
+const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true, trim: true },
     senha: { type: String, required: true },
-    nomeBarbearia: { type: String, default: "Studio Barber", trim: true },
+  },
+  { timestamps: true }
+);
+
+const perfilSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true, unique: true },
+    nomeBarbearia: { type: String, default: "Studio Barber" },
     logoBarbearia: { type: String, default: "" },
     whatsapp: { type: String, default: "" },
     slug: { type: String, unique: true, sparse: true },
@@ -49,129 +61,196 @@ const UsuarioSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const ServicoSchema = new mongoose.Schema(
+const servicoSchema = new mongoose.Schema(
   {
+    userId: { type: String, required: true },
     nome: { type: String, required: true, trim: true },
-    preco: { type: Number, required: true },
+    preco: { type: Number, default: 0 },
     duracao: { type: String, default: "" },
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
   },
   { timestamps: true }
 );
 
-const AgendamentoSchema = new mongoose.Schema(
+const agendamentoSchema = new mongoose.Schema(
   {
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    userId: { type: String, required: true },
     cliente: { type: String, required: true, trim: true },
-    telefone: { type: String, required: true, trim: true },
+    telefone: { type: String, default: "" },
     servico: { type: String, required: true, trim: true },
-    data: { type: String, required: true, trim: true },
-    horario: { type: String, required: true, trim: true },
-    origem: { type: String, default: "painel" },
-    vistoPeloBarbeiro: { type: Boolean, default: false },
+    data: { type: String, required: true },
+    horario: { type: String, required: true },
   },
   { timestamps: true }
 );
 
-const Usuario = mongoose.model("Usuario", UsuarioSchema);
-const Servico = mongoose.model("Servico", ServicoSchema);
-const Agendamento = mongoose.model("Agendamento", AgendamentoSchema);
+const notificacaoSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true },
+    texto: { type: String, required: true },
+    visto: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
 
-app.get("/health", (_, res) => {
+const User = mongoose.model("User", userSchema);
+const Perfil = mongoose.model("Perfil", perfilSchema);
+const Servico = mongoose.model("Servico", servicoSchema);
+const Agendamento = mongoose.model("Agendamento", agendamentoSchema);
+const Notificacao = mongoose.model("Notificacao", notificacaoSchema);
+
+/* =========================
+   FUNÇÕES AUXILIARES
+========================= */
+function criarSlug(nome) {
+  return String(nome || "studio-barber")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+async function gerarSlugUnico(nome, userId) {
+  const base = criarSlug(nome) || `barbearia-${userId}`;
+  let slugFinal = base;
+  let contador = 1;
+
+  while (true) {
+    const existente = await Perfil.findOne({
+      slug: slugFinal,
+      userId: { $ne: String(userId) },
+    });
+
+    if (!existente) return slugFinal;
+
+    contador += 1;
+    slugFinal = `${base}-${contador}`;
+  }
+}
+
+/* =========================
+   HEALTH
+========================= */
+app.get("/health", (req, res) => {
   res.json({ ok: true, message: "Backend online" });
 });
 
+/* =========================
+   AUTH
+========================= */
 app.post("/register", async (req, res) => {
   try {
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const senha = String(req.body.senha || "").trim();
+    const { email, senha } = req.body;
 
     if (!email || !senha) {
-      return res.status(400).json({ message: "Email e senha são obrigatórios." });
+      return res.status(400).json({ message: "Preencha email e senha." });
     }
 
-    if (!email.includes("@")) {
-      return res.status(400).json({ message: "Digite um email válido." });
+    const emailLimpo = String(email).trim().toLowerCase();
+
+    const existente = await User.findOne({ email: emailLimpo });
+    if (existente) {
+      return res.status(400).json({ message: "Email já cadastrado." });
     }
 
-    if (senha.length < 4) {
-      return res.status(400).json({ message: "A senha precisa ter pelo menos 4 caracteres." });
-    }
+    const novoUsuario = await User.create({
+      email: emailLimpo,
+      senha: String(senha),
+    });
 
-    const existe = await Usuario.findOne({ email });
-    if (existe) {
-      return res.status(400).json({ message: "Esse email já está cadastrado." });
-    }
-
-    const novoUsuario = await Usuario.create({
-      email,
-      senha,
-      slug: `barbearia-${Date.now()}`,
+    await Perfil.create({
+      userId: String(novoUsuario._id),
+      nomeBarbearia: "Studio Barber",
+      logoBarbearia: "",
+      whatsapp: "",
+      slug: await gerarSlugUnico("studio-barber", String(novoUsuario._id)),
+      abertura: "09:00",
+      fechamento: "19:00",
+      diasFuncionamento: {
+        segunda: true,
+        terca: true,
+        quarta: true,
+        quinta: true,
+        sexta: true,
+        sabado: true,
+        domingo: false,
+      },
     });
 
     return res.status(201).json({
       message: "Conta criada com sucesso.",
       userId: novoUsuario._id,
+      email: novoUsuario.email,
     });
   } catch (error) {
-    console.error("Erro no register:", error);
-    return res.status(500).json({ message: "Erro ao cadastrar conta." });
+    console.error("Erro ao cadastrar:", error);
+    return res.status(500).json({ message: "Erro ao cadastrar." });
   }
 });
 
 app.post("/login", async (req, res) => {
   try {
-    const email = String(req.body.email || "").trim().toLowerCase();
-    const senha = String(req.body.senha || "").trim();
+    const { email, senha } = req.body;
 
     if (!email || !senha) {
-      return res.status(400).json({ message: "Email e senha são obrigatórios." });
+      return res.status(400).json({ message: "Preencha email e senha." });
     }
 
-    const usuario = await Usuario.findOne({ email });
-    if (!usuario) {
-      return res.status(401).json({ message: "Usuário não encontrado." });
-    }
+    const emailLimpo = String(email).trim().toLowerCase();
 
-    if (usuario.senha !== senha) {
-      return res.status(401).json({ message: "Senha incorreta." });
-    }
-
-    return res.json({
-      userId: usuario._id,
-      email: usuario.email,
-      nomeBarbearia: usuario.nomeBarbearia,
-      logoBarbearia: usuario.logoBarbearia,
-      whatsapp: usuario.whatsapp,
-      slug: usuario.slug,
-      abertura: usuario.abertura,
-      fechamento: usuario.fechamento,
-      diasFuncionamento: usuario.diasFuncionamento,
-    });
-  } catch (error) {
-    console.error("Erro no login:", error);
-    return res.status(500).json({ message: "Erro ao fazer login." });
-  }
-});
-
-app.get("/perfil/:userId", async (req, res) => {
-  try {
-    const usuario = await Usuario.findById(req.params.userId).lean();
+    const usuario = await User.findOne({ email: emailLimpo });
     if (!usuario) {
       return res.status(404).json({ message: "Usuário não encontrado." });
     }
 
+    if (String(usuario.senha) !== String(senha)) {
+      return res.status(401).json({ message: "Senha incorreta." });
+    }
+
     return res.json({
-      _id: usuario._id,
+      message: "Login realizado com sucesso.",
+      userId: usuario._id,
       email: usuario.email,
-      nomeBarbearia: usuario.nomeBarbearia,
-      logoBarbearia: usuario.logoBarbearia,
-      whatsapp: usuario.whatsapp,
-      slug: usuario.slug,
-      abertura: usuario.abertura,
-      fechamento: usuario.fechamento,
-      diasFuncionamento: usuario.diasFuncionamento,
     });
+  } catch (error) {
+    console.error("Erro ao fazer login:", error);
+    return res.status(500).json({ message: "Erro ao fazer login." });
+  }
+});
+
+/* =========================
+   PERFIL
+========================= */
+app.get("/perfil/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    let perfil = await Perfil.findOne({ userId: String(userId) });
+
+    if (!perfil) {
+      perfil = await Perfil.create({
+        userId: String(userId),
+        nomeBarbearia: "Studio Barber",
+        logoBarbearia: "",
+        whatsapp: "",
+        slug: await gerarSlugUnico("studio-barber", String(userId)),
+        abertura: "09:00",
+        fechamento: "19:00",
+        diasFuncionamento: {
+          segunda: true,
+          terca: true,
+          quarta: true,
+          quinta: true,
+          sexta: true,
+          sabado: true,
+          domingo: false,
+        },
+      });
+    }
+
+    return res.json(perfil);
   } catch (error) {
     console.error("Erro ao buscar perfil:", error);
     return res.status(500).json({ message: "Erro ao buscar perfil." });
@@ -180,166 +259,120 @@ app.get("/perfil/:userId", async (req, res) => {
 
 app.put("/perfil/:userId", async (req, res) => {
   try {
-    const usuario = await Usuario.findById(req.params.userId);
-    if (!usuario) {
-      return res.status(404).json({ message: "Usuário não encontrado." });
-    }
+    const { userId } = req.params;
+    const {
+      nomeBarbearia,
+      logoBarbearia,
+      whatsapp,
+      abertura,
+      fechamento,
+      diasFuncionamento,
+    } = req.body;
 
-    const nomeBarbearia = String(req.body.nomeBarbearia || usuario.nomeBarbearia).trim();
-    const logoBarbearia = String(req.body.logoBarbearia || "");
-    const whatsapp = String(req.body.whatsapp || "").replace(/\D/g, "");
-    const abertura = String(req.body.abertura || usuario.abertura);
-    const fechamento = String(req.body.fechamento || usuario.fechamento);
-    const diasFuncionamento = req.body.diasFuncionamento || usuario.diasFuncionamento;
+    const slug = await gerarSlugUnico(nomeBarbearia || "studio-barber", userId);
 
-    const slugBase = criarSlug(nomeBarbearia) || `barbearia-${Date.now()}`;
-    let slugFinal = slugBase;
-
-    const slugEmUso = await Usuario.findOne({
-      slug: slugBase,
-      _id: { $ne: usuario._id },
-    });
-
-    if (slugEmUso) {
-      slugFinal = `${slugBase}-${String(usuario._id).slice(-5)}`;
-    }
-
-    usuario.nomeBarbearia = nomeBarbearia;
-    usuario.logoBarbearia = logoBarbearia;
-    usuario.whatsapp = whatsapp;
-    usuario.abertura = abertura;
-    usuario.fechamento = fechamento;
-    usuario.diasFuncionamento = diasFuncionamento;
-    usuario.slug = slugFinal;
-
-    await usuario.save();
-
-    return res.json({
-      message: "Perfil atualizado com sucesso.",
-      perfil: {
-        _id: usuario._id,
-        email: usuario.email,
-        nomeBarbearia: usuario.nomeBarbearia,
-        logoBarbearia: usuario.logoBarbearia,
-        whatsapp: usuario.whatsapp,
-        slug: usuario.slug,
-        abertura: usuario.abertura,
-        fechamento: usuario.fechamento,
-        diasFuncionamento: usuario.diasFuncionamento,
+    const perfil = await Perfil.findOneAndUpdate(
+      { userId: String(userId) },
+      {
+        userId: String(userId),
+        nomeBarbearia: nomeBarbearia || "Studio Barber",
+        logoBarbearia: logoBarbearia || "",
+        whatsapp: whatsapp || "",
+        abertura: abertura || "09:00",
+        fechamento: fechamento || "19:00",
+        diasFuncionamento: diasFuncionamento || {
+          segunda: true,
+          terca: true,
+          quarta: true,
+          quinta: true,
+          sexta: true,
+          sabado: true,
+          domingo: false,
+        },
+        slug,
       },
-    });
+      { new: true, upsert: true }
+    );
+
+    return res.json({ message: "Perfil salvo com sucesso.", perfil });
   } catch (error) {
-    console.error("Erro ao atualizar perfil:", error);
-    return res.status(500).json({ message: "Erro ao atualizar perfil." });
+    console.error("Erro ao salvar perfil:", error);
+    return res.status(500).json({ message: "Erro ao salvar perfil." });
   }
 });
 
+/* =========================
+   SERVIÇOS
+========================= */
 app.get("/servicos/:userId", async (req, res) => {
   try {
-    const servicos = await Servico.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    const servicos = await Servico.find({ userId: String(req.params.userId) }).sort({
+      createdAt: -1,
+    });
     return res.json(servicos);
   } catch (error) {
-    console.error("Erro ao listar serviços:", error);
-    return res.status(500).json({ message: "Erro ao listar serviços." });
+    console.error("Erro ao buscar serviços:", error);
+    return res.status(500).json({ message: "Erro ao buscar serviços." });
   }
 });
 
 app.post("/servicos", async (req, res) => {
   try {
-    const nome = String(req.body.nome || "").trim();
-    const preco = Number(req.body.preco);
-    const duracao = String(req.body.duracao || "").trim();
-    const userId = req.body.userId;
+    const { userId, nome, preco, duracao } = req.body;
 
-    if (!nome || !userId || Number.isNaN(preco) || preco <= 0) {
-      return res.status(400).json({ message: "Preencha nome, preço e usuário corretamente." });
+    if (!userId || !nome) {
+      return res.status(400).json({ message: "Preencha os dados do serviço." });
     }
 
-    const novoServico = await Servico.create({ nome, preco, duracao, userId });
+    const novoServico = await Servico.create({
+      userId: String(userId),
+      nome: String(nome).trim(),
+      preco: Number(preco || 0),
+      duracao: duracao || "",
+    });
+
     return res.status(201).json(novoServico);
   } catch (error) {
-    console.error("Erro ao criar serviço:", error);
-    return res.status(500).json({ message: "Erro ao criar serviço." });
+    console.error("Erro ao adicionar serviço:", error);
+    return res.status(500).json({ message: "Erro ao adicionar serviço." });
   }
 });
 
 app.delete("/servicos/:id", async (req, res) => {
   try {
     await Servico.findByIdAndDelete(req.params.id);
-    return res.json({ message: "Serviço apagado." });
+    return res.json({ message: "Serviço apagado com sucesso." });
   } catch (error) {
     console.error("Erro ao apagar serviço:", error);
     return res.status(500).json({ message: "Erro ao apagar serviço." });
   }
 });
 
+/* =========================
+   AGENDAMENTOS
+========================= */
 app.get("/agendamentos/:userId", async (req, res) => {
   try {
-    const agendamentos = await Agendamento.find({ userId: req.params.userId }).sort({
-      data: 1,
-      horario: 1,
-      createdAt: -1,
-    });
-    return res.json(agendamentos);
-  } catch (error) {
-    console.error("Erro ao listar agendamentos:", error);
-    return res.status(500).json({ message: "Erro ao listar agendamentos." });
-  }
-});
-
-app.post("/agendamentos/painel", async (req, res) => {
-  try {
-    const { userId, cliente, telefone, servico, data, horario } = req.body;
-
-    if (!userId || !cliente || !telefone || !servico || !data || !horario) {
-      return res.status(400).json({ message: "Preencha todos os campos do agendamento." });
-    }
-
-    const conflito = await Agendamento.findOne({ userId, data, horario });
-    if (conflito) {
-      return res.status(400).json({ message: "Já existe agendamento nessa data e horário." });
-    }
-
-    const novoAgendamento = await Agendamento.create({
-      userId,
-      cliente,
-      telefone,
-      servico,
-      data,
-      horario,
-      origem: "painel",
-      vistoPeloBarbeiro: true,
-    });
-
-    return res.status(201).json(novoAgendamento);
-  } catch (error) {
-    console.error("Erro ao criar agendamento pelo painel:", error);
-    return res.status(500).json({ message: "Erro ao criar agendamento." });
-  }
-});
-
-app.delete("/agendamentos/:id", async (req, res) => {
-  try {
-    await Agendamento.findByIdAndDelete(req.params.id);
-    return res.json({ message: "Agendamento apagado." });
-  } catch (error) {
-    console.error("Erro ao apagar agendamento:", error);
-    return res.status(500).json({ message: "Erro ao apagar agendamento." });
-  }
-});
-
-app.get("/notificacoes/:userId", async (req, res) => {
-  try {
-    const novos = await Agendamento.find({
-      userId: req.params.userId,
-      origem: "cliente",
-      vistoPeloBarbeiro: false,
+    const agendamentos = await Agendamento.find({
+      userId: String(req.params.userId),
     }).sort({ createdAt: -1 });
 
-    const notificacoes = novos.map((item) => ({
-      _id: item._id,
-      texto: `${item.cliente} agendou ${item.servico} às ${item.horario} do dia ${item.data}`,
-    }));
+    return res.json(agendamentos);
+  } catch (error) {
+    console.error("Erro ao buscar agendamentos:", error);
+    return res.status(500).json({ message: "Erro ao buscar agendamentos." });
+  }
+});
+
+/* =========================
+   NOTIFICAÇÕES
+========================= */
+app.get("/notificacoes/:userId", async (req, res) => {
+  try {
+    const notificacoes = await Notificacao.find({
+      userId: String(req.params.userId),
+      visto: false,
+    }).sort({ createdAt: -1 });
 
     return res.json(notificacoes);
   } catch (error) {
@@ -350,47 +383,50 @@ app.get("/notificacoes/:userId", async (req, res) => {
 
 app.post("/notificacoes/marcar-como-vistas/:userId", async (req, res) => {
   try {
-    await Agendamento.updateMany(
-      {
-        userId: req.params.userId,
-        origem: "cliente",
-        vistoPeloBarbeiro: false,
-      },
-      {
-        $set: { vistoPeloBarbeiro: true },
-      }
+    await Notificacao.updateMany(
+      { userId: String(req.params.userId), visto: false },
+      { $set: { visto: true } }
     );
 
     return res.json({ message: "Notificações marcadas como vistas." });
   } catch (error) {
     console.error("Erro ao marcar notificações:", error);
-    return res.status(500).json({ message: "Erro ao atualizar notificações." });
+    return res
+      .status(500)
+      .json({ message: "Erro ao marcar notificações." });
   }
 });
 
+/* =========================
+   ROTAS PÚBLICAS
+========================= */
 app.get("/public/barbearias/:slug", async (req, res) => {
   try {
-    const usuario = await Usuario.findOne({ slug: req.params.slug }).lean();
-    if (!usuario) {
+    const perfil = await Perfil.findOne({ slug: req.params.slug });
+
+    if (!perfil) {
       return res.status(404).json({ message: "Barbearia não encontrada." });
     }
 
-    const servicos = await Servico.find({ userId: usuario._id }).sort({ createdAt: -1 }).lean();
+    const servicos = await Servico.find({ userId: String(perfil.userId) }).sort({
+      createdAt: -1,
+    });
 
     return res.json({
-      userId: usuario._id,
-      nomeBarbearia: usuario.nomeBarbearia,
-      logoBarbearia: usuario.logoBarbearia,
-      whatsapp: usuario.whatsapp,
-      slug: usuario.slug,
-      abertura: usuario.abertura,
-      fechamento: usuario.fechamento,
-      diasFuncionamento: usuario.diasFuncionamento,
+      userId: perfil.userId,
+      nomeBarbearia: perfil.nomeBarbearia,
+      logoBarbearia: perfil.logoBarbearia,
+      whatsapp: perfil.whatsapp,
+      abertura: perfil.abertura,
+      fechamento: perfil.fechamento,
+      diasFuncionamento: perfil.diasFuncionamento,
       servicos,
     });
   } catch (error) {
-    console.error("Erro ao buscar página pública:", error);
-    return res.status(500).json({ message: "Erro ao buscar página pública." });
+    console.error("Erro ao buscar barbearia pública:", error);
+    return res
+      .status(500)
+      .json({ message: "Erro ao buscar barbearia pública." });
   }
 });
 
@@ -402,11 +438,18 @@ app.get("/public/horarios-ocupados", async (req, res) => {
       return res.status(400).json({ message: "userId e data são obrigatórios." });
     }
 
-    const agendamentos = await Agendamento.find({ userId, data }).lean();
-    return res.json(agendamentos.map((item) => item.horario));
+    const agendamentos = await Agendamento.find({
+      userId: String(userId),
+      data: String(data),
+    });
+
+    const horarios = agendamentos.map((item) => item.horario);
+    return res.json(horarios);
   } catch (error) {
     console.error("Erro ao buscar horários ocupados:", error);
-    return res.status(500).json({ message: "Erro ao buscar horários ocupados." });
+    return res
+      .status(500)
+      .json({ message: "Erro ao buscar horários ocupados." });
   }
 });
 
@@ -414,43 +457,51 @@ app.post("/public/agendar", async (req, res) => {
   try {
     const { userId, cliente, telefone, servico, data, horario } = req.body;
 
-    if (!userId || !cliente || !telefone || !servico || !data || !horario) {
+    if (!userId || !cliente || !servico || !data || !horario) {
       return res.status(400).json({ message: "Preencha todos os campos." });
     }
 
-    const usuario = await Usuario.findById(userId);
-    if (!usuario) {
-      return res.status(404).json({ message: "Barbeiro não encontrado." });
-    }
+    const horarioExistente = await Agendamento.findOne({
+      userId: String(userId),
+      data: String(data),
+      horario: String(horario),
+    });
 
-    const conflito = await Agendamento.findOne({ userId, data, horario });
-    if (conflito) {
+    if (horarioExistente) {
       return res.status(400).json({ message: "Esse horário já foi ocupado." });
     }
 
     const novoAgendamento = await Agendamento.create({
-      userId,
+      userId: String(userId),
       cliente: String(cliente).trim(),
-      telefone: String(telefone).trim(),
+      telefone: telefone || "",
       servico: String(servico).trim(),
-      data: String(data).trim(),
-      horario: String(horario).trim(),
-      origem: "cliente",
-      vistoPeloBarbeiro: false,
+      data: String(data),
+      horario: String(horario),
+    });
+
+    const perfil = await Perfil.findOne({ userId: String(userId) });
+
+    await Notificacao.create({
+      userId: String(userId),
+      texto: `${cliente} agendou ${servico} para ${data} às ${horario}`,
+      visto: false,
     });
 
     return res.status(201).json({
       message: "Agendamento realizado com sucesso.",
       agendamento: novoAgendamento,
-      whatsapp: usuario.whatsapp,
-      nomeBarbearia: usuario.nomeBarbearia,
+      whatsapp: perfil?.whatsapp || "",
     });
   } catch (error) {
-    console.error("Erro no agendamento público:", error);
+    console.error("Erro ao realizar agendamento:", error);
     return res.status(500).json({ message: "Erro ao realizar agendamento." });
   }
 });
 
+/* =========================
+   START
+========================= */
 app.listen(PORT, () => {
   console.log(`Servidor PRO rodando em http://localhost:${PORT} 🚀`);
 });
