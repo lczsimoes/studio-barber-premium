@@ -1573,6 +1573,192 @@ if (tela === "home") {
     </div>
   );
 
+function PaginaPublica({ slug }) {
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [servico, setServico] = useState("");
+  const [profissional, setProfissional] = useState("");
+  const [data, setData] = useState("");
+  const [horario, setHorario] = useState("");
+
+  const servicosPublicos = [
+    "Corte",
+    "Barba",
+    "Corte + Barba",
+    "Sobrancelha",
+  ];
+
+  const profissionaisPublicos = [
+    "Primeiro disponível",
+    "Barbeiro 1",
+    "Barbeiro 2",
+  ];
+
+  function formatarTelefonePublico(valor) {
+    const numeros = valor.replace(/\D/g, "").slice(0, 11);
+
+    if (numeros.length <= 10) {
+      return numeros
+        .replace(/^(\d{2})(\d)/g, "($1) $2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    }
+
+    return numeros
+      .replace(/^(\d{2})(\d)/g, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2");
+  }
+
+  async function agendarPublico() {
+    if (!nome || !telefone || !servico || !profissional || !data || !horario) {
+      alert("Preencha todos os campos.");
+      return;
+    }
+
+    alert(
+      `Pedido de agendamento enviado!\n\nBarbearia: ${slug}\nCliente: ${nome}\nTelefone: ${telefone}\nServiço: ${servico}\nProfissional: ${profissional}\nData: ${data}\nHorário: ${horario}`
+    );
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#020617",
+        color: "#fff",
+        padding: "30px 20px",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "560px",
+          margin: "0 auto",
+          background: "#111827",
+          border: "1px solid #1f2937",
+          borderRadius: "24px",
+          padding: "28px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
+          <div
+            style={{
+              width: "72px",
+              height: "72px",
+              borderRadius: "18px",
+              background: "#f59e0b",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "34px",
+              margin: "0 auto 16px",
+            }}
+          >
+            💈
+          </div>
+
+          <h1 style={{ margin: 0, color: "#f59e0b", fontSize: "34px" }}>
+            Studio Barber
+          </h1>
+
+          <h2 style={{ marginTop: "12px", marginBottom: "8px" }}>
+            Agende seu horário
+          </h2>
+
+          <p style={{ color: "#94a3b8", margin: 0 }}>
+            Barbearia: {slug}
+          </p>
+        </div>
+
+        <input
+          placeholder="Seu nome"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          style={publicInputStyle()}
+        />
+
+        <input
+          placeholder="Seu telefone"
+          value={telefone}
+          onChange={(e) => setTelefone(formatarTelefonePublico(e.target.value))}
+          style={publicInputStyle()}
+        />
+
+        <select
+          value={servico}
+          onChange={(e) => setServico(e.target.value)}
+          style={publicInputStyle()}
+        >
+          <option value="">Selecione o serviço</option>
+          {servicosPublicos.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={profissional}
+          onChange={(e) => setProfissional(e.target.value)}
+          style={publicInputStyle()}
+        >
+          <option value="">Selecione o profissional</option>
+          {profissionaisPublicos.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={data}
+          onChange={(e) => setData(e.target.value)}
+          style={publicInputStyle()}
+        />
+
+        <input
+          type="time"
+          value={horario}
+          onChange={(e) => setHorario(e.target.value)}
+          style={publicInputStyle()}
+        />
+
+        <button
+          onClick={agendarPublico}
+          style={{
+            width: "100%",
+            background: "#f59e0b",
+            color: "#111827",
+            border: "none",
+            padding: "16px",
+            borderRadius: "14px",
+            fontWeight: "900",
+            cursor: "pointer",
+            fontSize: "16px",
+            marginTop: "8px",
+          }}
+        >
+          Solicitar agendamento
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function publicInputStyle() {
+  return {
+    width: "100%",
+    padding: "14px",
+    borderRadius: "12px",
+    border: "1px solid #334155",
+    marginBottom: "12px",
+    background: "#0f172a",
+    color: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+}
 
 function menuStyle(ativo, theme) {
   return {
