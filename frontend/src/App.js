@@ -27,25 +27,31 @@ const diasPadrao = {
   domingo: false,
 };
 
-export default function App() {
+ export default function App() {
+  const path = window.location.pathname;
+  const partes = path.split("/").filter(Boolean);
+
+  const paginaPublica = partes[0] === "agendar";
+  const slugPublico = paginaPublica ? partes[1] : "";
+
   const [tela, setTela] = useState("home");
 
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [mostrarSenha, setMostrarSenha] = useState(false);
+    const [email, setEmail] = useState("");
+    const [senha, setSenha] = useState("");
+    const [mostrarSenha, setMostrarSenha] = useState(false);
 
-  const [usuario, setUsuario] = useState(null);
-  const [carregando, setCarregando] = useState(false);
+    const [usuario, setUsuario] = useState(null);
+    const [carregando, setCarregando] = useState(false);
 
-  const [perfil, setPerfil] = useState({
-    nomeBarbearia: "Studio Barber",
-    logoBarbearia: "",
-    whatsapp: "",
-    slug: "",
-    abertura: "09:00",
-    fechamento: "19:00",
-    diasFuncionamento: diasPadrao,
-  });
+    const [perfil, setPerfil] = useState({
+      nomeBarbearia: "Studio Barber",
+      logoBarbearia: "",
+      whatsapp: "",
+      slug: "",
+      abertura: "09:00",
+      fechamento: "19:00",
+      diasFuncionamento: diasPadrao,
+    });
 
   const [clientes, setClientes] = useState([]);
   const [servicos, setServicos] = useState([]);
@@ -409,7 +415,31 @@ export default function App() {
     salvarLocal("agendamentos_studio_barber", atualizados);
   }
 
-  if (tela === "home") {
+if (paginaPublica && slugPublico) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#020617",
+        color: "#fff",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: "30px",
+        textAlign: "center"
+      }}
+    >
+      <div>
+        <h1 style={{ color: "#f59e0b" }}>Studio Barber</h1>
+        <h2>Página pública do cliente</h2>
+        <p>Barbearia: {slugPublico}</p>
+      </div>
+    </div>
+  );
+}
+
+if (tela === "home") {
+
     return (
       <div
         style={{
@@ -1542,7 +1572,7 @@ export default function App() {
       </main>
     </div>
   );
-}
+
 
 function menuStyle(ativo, theme) {
   return {
@@ -1632,3 +1662,4 @@ function dangerButton() {
   };
 }
 
+}
