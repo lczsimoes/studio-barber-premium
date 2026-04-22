@@ -27,31 +27,30 @@ const diasPadrao = {
   domingo: false,
 };
 
- export default function App() {
+export default function App() {
   const path = window.location.pathname;
   const partes = path.split("/").filter(Boolean);
-
   const paginaPublica = partes[0] === "agendar";
   const slugPublico = paginaPublica ? partes[1] : "";
 
   const [tela, setTela] = useState("home");
 
-    const [email, setEmail] = useState("");
-    const [senha, setSenha] = useState("");
-    const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
 
-    const [usuario, setUsuario] = useState(null);
-    const [carregando, setCarregando] = useState(false);
+  const [usuario, setUsuario] = useState(null);
+  const [carregando, setCarregando] = useState(false);
 
-    const [perfil, setPerfil] = useState({
-      nomeBarbearia: "Studio Barber",
-      logoBarbearia: "",
-      whatsapp: "",
-      slug: "",
-      abertura: "09:00",
-      fechamento: "19:00",
-      diasFuncionamento: diasPadrao,
-    });
+  const [perfil, setPerfil] = useState({
+    nomeBarbearia: "Studio Barber",
+    logoBarbearia: "",
+    whatsapp: "",
+    slug: "",
+    abertura: "09:00",
+    fechamento: "19:00",
+    diasFuncionamento: diasPadrao,
+  });
 
   const [clientes, setClientes] = useState([]);
   const [servicos, setServicos] = useState([]);
@@ -262,7 +261,7 @@ const diasPadrao = {
     reader.readAsDataURL(file);
   }
 
-    function salvarPerfil() {
+  function salvarPerfil() {
     if (!usuario) return;
 
     const novoPerfil = {
@@ -415,31 +414,11 @@ const diasPadrao = {
     salvarLocal("agendamentos_studio_barber", atualizados);
   }
 
-if (paginaPublica && slugPublico) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#020617",
-        color: "#fff",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "30px",
-        textAlign: "center"
-      }}
-    >
-      <div>
-        <h1 style={{ color: "#f59e0b" }}>Studio Barber</h1>
-        <h2>Página pública do cliente</h2>
-        <p>Barbearia: {slugPublico}</p>
-      </div>
-    </div>
-  );
-}
+  if (paginaPublica && slugPublico) {
+    return <PaginaPublica slug={slugPublico} />;
+  }
 
-if (tela === "home") {
-
+  if (tela === "home") {
     return (
       <div
         style={{
@@ -488,12 +467,7 @@ if (tela === "home") {
             </button>
           </div>
 
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "80px",
-            }}
-          >
+          <div style={{ textAlign: "center", marginBottom: "80px" }}>
             <h2
               style={{
                 fontSize: "58px",
@@ -561,7 +535,7 @@ if (tela === "home") {
             </div>
           </div>
 
-                    <div
+          <div
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
@@ -594,9 +568,7 @@ if (tela === "home") {
                   {item[0]}
                 </h3>
 
-                <p style={{ color: "#94a3b8", marginBottom: 0 }}>
-                  {item[1]}
-                </p>
+                <p style={{ color: "#94a3b8", marginBottom: 0 }}>{item[1]}</p>
               </div>
             ))}
           </div>
@@ -710,13 +682,7 @@ if (tela === "home") {
               border: "1px solid #1f2937",
             }}
           >
-            <h2
-              style={{
-                fontSize: "44px",
-                marginTop: 0,
-                marginBottom: "16px",
-              }}
-            >
+            <h2 style={{ fontSize: "44px", marginTop: 0, marginBottom: "16px" }}>
               Pronto para profissionalizar sua barbearia?
             </h2>
 
@@ -749,13 +715,7 @@ if (tela === "home") {
             </button>
           </div>
 
-          <p
-            style={{
-              textAlign: "center",
-              color: "#64748b",
-              marginBottom: 0,
-            }}
-          >
+          <p style={{ textAlign: "center", color: "#64748b", marginBottom: 0 }}>
             © Studio Barber - Sistema Premium para Barbearias
           </p>
         </div>
@@ -868,10 +828,7 @@ if (tela === "home") {
             </button>
           </div>
 
-          <button
-            onClick={login}
-            style={primaryButton(theme)}
-          >
+          <button onClick={login} style={primaryButton(theme)}>
             {carregando ? "Entrando..." : "Entrar"}
           </button>
 
@@ -1035,16 +992,14 @@ if (tela === "home") {
         </button>
       </aside>
 
-    <main
-  style={{
-    flex: 1,
-    padding: "30px",
-    background: theme.content,
-  }}
->
-
-
-              {tela === "dashboard" && (
+      <main
+        style={{
+          flex: 1,
+          padding: "30px",
+          background: theme.content,
+        }}
+      >
+        {tela === "dashboard" && (
           <>
             <h1 style={{ color: theme.text, marginBottom: "24px" }}>
               Dashboard Premium 💈
@@ -1124,16 +1079,11 @@ if (tela === "home") {
               <input
                 placeholder="Telefone do cliente"
                 value={telefoneCliente}
-                onChange={(e) =>
-                  setTelefoneCliente(formatarTelefone(e.target.value))
-                }
+                onChange={(e) => setTelefoneCliente(formatarTelefone(e.target.value))}
                 style={inputStyle(theme)}
               />
 
-              <button
-                onClick={adicionarCliente}
-                style={primaryButton(theme)}
-              >
+              <button onClick={adicionarCliente} style={primaryButton(theme)}>
                 Adicionar cliente
               </button>
             </div>
@@ -1148,18 +1098,10 @@ if (tela === "home") {
             >
               {clientes.map((item) => (
                 <div key={item.id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>
-                    {item.nome}
-                  </h3>
+                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
+                  <p style={{ color: theme.textSoft }}>{item.telefone}</p>
 
-                  <p style={{ color: theme.textSoft }}>
-                    {item.telefone}
-                  </p>
-
-                  <button
-                    onClick={() => removerCliente(item.id)}
-                    style={dangerButton()}
-                  >
+                  <button onClick={() => removerCliente(item.id)} style={dangerButton()}>
                     Remover
                   </button>
                 </div>
@@ -1168,7 +1110,7 @@ if (tela === "home") {
           </>
         )}
 
-                {tela === "servicos" && (
+        {tela === "servicos" && (
           <>
             <h1 style={{ color: theme.text, marginBottom: "24px" }}>
               Serviços
@@ -1196,10 +1138,7 @@ if (tela === "home") {
                 style={inputStyle(theme)}
               />
 
-              <button
-                onClick={adicionarServico}
-                style={primaryButton(theme)}
-              >
+              <button onClick={adicionarServico} style={primaryButton(theme)}>
                 Adicionar serviço
               </button>
             </div>
@@ -1214,22 +1153,11 @@ if (tela === "home") {
             >
               {servicos.map((item) => (
                 <div key={item._id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>
-                    {item.nome}
-                  </h3>
+                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
+                  <p style={{ color: theme.textSoft }}>💰 R$ {item.preco}</p>
+                  <p style={{ color: theme.textSoft }}>⏱️ {item.duracao}</p>
 
-                  <p style={{ color: theme.textSoft }}>
-                    💰 R$ {item.preco}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    ⏱️ {item.duracao}
-                  </p>
-
-                  <button
-                    onClick={() => apagarServico(item._id)}
-                    style={dangerButton()}
-                  >
+                  <button onClick={() => apagarServico(item._id)} style={dangerButton()}>
                     Apagar
                   </button>
                 </div>
@@ -1262,20 +1190,14 @@ if (tela === "home") {
               <input
                 placeholder="Especialidade"
                 value={novoFuncionarioEspecialidade}
-                onChange={(e) =>
-                  setNovoFuncionarioEspecialidade(e.target.value)
-                }
+                onChange={(e) => setNovoFuncionarioEspecialidade(e.target.value)}
                 style={inputStyle(theme)}
               />
 
               <input
                 placeholder="WhatsApp"
                 value={novoFuncionarioWhatsapp}
-                onChange={(e) =>
-                  setNovoFuncionarioWhatsapp(
-                    formatarTelefone(e.target.value)
-                  )
-                }
+                onChange={(e) => setNovoFuncionarioWhatsapp(formatarTelefone(e.target.value))}
                 style={inputStyle(theme)}
               />
 
@@ -1288,10 +1210,7 @@ if (tela === "home") {
                 />
               </div>
 
-              <button
-                onClick={adicionarFuncionario}
-                style={primaryButton(theme)}
-              >
+              <button onClick={adicionarFuncionario} style={primaryButton(theme)}>
                 Adicionar funcionário
               </button>
             </div>
@@ -1320,33 +1239,16 @@ if (tela === "home") {
                     />
                   )}
 
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>
-                    {item.nome}
-                  </h3>
+                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
+                  <p style={{ color: theme.textSoft }}>{item.cargo}</p>
+                  <p style={{ color: theme.textSoft }}>{item.especialidade}</p>
+                  <p style={{ color: theme.textSoft }}>{item.whatsapp}</p>
 
-                  <p style={{ color: theme.textSoft }}>
-                    {item.cargo}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    {item.especialidade}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    {item.whatsapp}
-                  </p>
-
-                  <button
-                    onClick={() => toggleFuncionario(item.id)}
-                    style={primaryButton(theme)}
-                  >
+                  <button onClick={() => toggleFuncionario(item.id)} style={primaryButton(theme)}>
                     {item.ativo ? "Desativar" : "Ativar"}
                   </button>
 
-                  <button
-                    onClick={() => removerFuncionario(item.id)}
-                    style={dangerButton()}
-                  >
+                  <button onClick={() => removerFuncionario(item.id)} style={dangerButton()}>
                     Remover
                   </button>
                 </div>
@@ -1355,7 +1257,7 @@ if (tela === "home") {
           </>
         )}
 
-                {tela === "agendamentos" && (
+        {tela === "agendamentos" && (
           <>
             <h1 style={{ color: theme.text, marginBottom: "24px" }}>
               Agendamentos
@@ -1390,9 +1292,7 @@ if (tela === "home") {
 
               <select
                 value={agendamentoProfissional}
-                onChange={(e) =>
-                  setAgendamentoProfissional(e.target.value)
-                }
+                onChange={(e) => setAgendamentoProfissional(e.target.value)}
                 style={inputStyle(theme)}
               >
                 <option value="">Selecione o profissional</option>
@@ -1419,10 +1319,7 @@ if (tela === "home") {
                 style={inputStyle(theme)}
               />
 
-              <button
-                onClick={adicionarAgendamentoInterno}
-                style={primaryButton(theme)}
-              >
+              <button onClick={adicionarAgendamentoInterno} style={primaryButton(theme)}>
                 Adicionar agendamento
               </button>
             </div>
@@ -1430,38 +1327,20 @@ if (tela === "home") {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit,minmax(260px,1fr))",
+                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
                 gap: "18px",
                 marginTop: "20px",
               }}
             >
               {agendamentos.map((item) => (
                 <div key={item.id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>
-                    {item.cliente}
-                  </h3>
+                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.cliente}</h3>
+                  <p style={{ color: theme.textSoft }}>✂️ {item.servico}</p>
+                  <p style={{ color: theme.textSoft }}>👨‍💼 {item.profissional}</p>
+                  <p style={{ color: theme.textSoft }}>📅 {item.data}</p>
+                  <p style={{ color: theme.textSoft }}>🕒 {item.horario}</p>
 
-                  <p style={{ color: theme.textSoft }}>
-                    ✂️ {item.servico}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    👨‍💼 {item.profissional}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    📅 {item.data}
-                  </p>
-
-                  <p style={{ color: theme.textSoft }}>
-                    🕒 {item.horario}
-                  </p>
-
-                  <button
-                    onClick={() => removerAgendamento(item.id)}
-                    style={dangerButton()}
-                  >
+                  <button onClick={() => removerAgendamento(item.id)} style={dangerButton()}>
                     Cancelar
                   </button>
                 </div>
@@ -1502,6 +1381,18 @@ if (tela === "home") {
               />
 
               <input
+                placeholder="Slug do link ex: studio-barber"
+                value={perfil.slug}
+                onChange={(e) =>
+                  setPerfil({
+                    ...perfil,
+                    slug: e.target.value,
+                  })
+                }
+                style={inputStyle(theme)}
+              />
+
+              <input
                 type="time"
                 value={perfil.abertura}
                 onChange={(e) =>
@@ -1534,17 +1425,14 @@ if (tela === "home") {
                 />
               </div>
 
-              <button
-                onClick={salvarPerfil}
-                style={primaryButton(theme)}
-              >
+              <button onClick={salvarPerfil} style={primaryButton(theme)}>
                 Salvar configurações
               </button>
             </div>
           </>
         )}
 
-                {tela === "link" && (
+        {tela === "link" && (
           <>
             <h1 style={{ color: theme.text, marginBottom: "24px" }}>
               Link do Cliente
@@ -1552,18 +1440,12 @@ if (tela === "home") {
 
             <div style={panelStyle(theme)}>
               <p style={{ color: theme.textSoft, lineHeight: "1.7" }}>
-                Esse é o link que você pode mandar para o cliente agendar
-                atendimento.
+                Esse é o link que você pode mandar para o cliente agendar atendimento.
               </p>
 
-              <div style={linkBoxStyle(theme)}>
-                {linkPublico}
-              </div>
+              <div style={linkBoxStyle(theme)}>{linkPublico}</div>
 
-              <button
-                onClick={() => navigator.clipboard.writeText(linkPublico)}
-                style={primaryButton(theme)}
-              >
+              <button onClick={() => navigator.clipboard.writeText(linkPublico)} style={primaryButton(theme)}>
                 Copiar link
               </button>
             </div>
@@ -1572,192 +1454,77 @@ if (tela === "home") {
       </main>
     </div>
   );
+}
 
 function PaginaPublica({ slug }) {
-  const [nome, setNome] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [servico, setServico] = useState("");
-  const [profissional, setProfissional] = useState("");
-  const [data, setData] = useState("");
-  const [horario, setHorario] = useState("");
+  const [perfilPublico, setPerfilPublico] = useState({
+    nomeBarbearia: "Studio Barber",
+    whatsapp: "",
+    slug,
+  });
 
-  const servicosPublicos = [
-    "Corte",
-    "Barba",
-    "Corte + Barba",
-    "Sobrancelha",
-  ];
+  useEffect(() => {
+    try {
+      const todasChaves = Object.keys(localStorage);
+      const chavePerfil = todasChaves.find((chave) => chave.startsWith("perfil_studio_barber_"));
 
-  const profissionaisPublicos = [
-    "Primeiro disponível",
-    "Barbeiro 1",
-    "Barbeiro 2",
-  ];
-
-  function formatarTelefonePublico(valor) {
-    const numeros = valor.replace(/\D/g, "").slice(0, 11);
-
-    if (numeros.length <= 10) {
-      return numeros
-        .replace(/^(\d{2})(\d)/g, "($1) $2")
-        .replace(/(\d{4})(\d)/, "$1-$2");
+      if (chavePerfil) {
+        const perfilSalvo = JSON.parse(localStorage.getItem(chavePerfil) || "{}");
+        setPerfilPublico({
+          nomeBarbearia: perfilSalvo.nomeBarbearia || "Studio Barber",
+          whatsapp: perfilSalvo.whatsapp || "",
+          slug: perfilSalvo.slug || slug,
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar perfil público:", error);
     }
+  }, [slug]);
 
-    return numeros
-      .replace(/^(\d{2})(\d)/g, "($1) $2")
-      .replace(/(\d{5})(\d)/, "$1-$2");
-  }
-
-  async function agendarPublico() {
-    if (!nome || !telefone || !servico || !profissional || !data || !horario) {
-      alert("Preencha todos os campos.");
+  function abrirWhatsApp(servico) {
+    const numero = (perfilPublico.whatsapp || "").replace(/\D/g, "");
+    if (!numero) {
+      alert("WhatsApp da barbearia não configurado.");
       return;
     }
 
-    alert(
-      `Pedido de agendamento enviado!\n\nBarbearia: ${slug}\nCliente: ${nome}\nTelefone: ${telefone}\nServiço: ${servico}\nProfissional: ${profissional}\nData: ${data}\nHorário: ${horario}`
+    const texto = encodeURIComponent(
+      `Olá! Quero agendar ${servico} na barbearia ${perfilPublico.nomeBarbearia}.`
     );
+
+    window.open(`https://wa.me/${numero}?text=${texto}`, "_blank");
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#020617",
-        color: "#fff",
-        padding: "30px 20px",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "560px",
-          margin: "0 auto",
-          background: "#111827",
-          border: "1px solid #1f2937",
-          borderRadius: "24px",
-          padding: "28px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "28px" }}>
-          <div
-            style={{
-              width: "72px",
-              height: "72px",
-              borderRadius: "18px",
-              background: "#f59e0b",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "34px",
-              margin: "0 auto 16px",
-            }}
-          >
-            💈
+    <div style={styles.publicWrap}>
+      <div style={styles.publicContainer}>
+        <div style={styles.publicCard}>
+          <div style={styles.publicLogo}>💈</div>
+
+          <h1 style={styles.publicTitulo}>{perfilPublico.nomeBarbearia}</h1>
+          <p style={styles.publicSubtitulo}>Agende seu horário com facilidade</p>
+
+          <div style={styles.publicInfo}>
+            <strong>Link:</strong> {slug}
           </div>
 
-          <h1 style={{ margin: 0, color: "#f59e0b", fontSize: "34px" }}>
-            Studio Barber
-          </h1>
+          <div style={styles.publicServicos}>
+            <button onClick={() => abrirWhatsApp("Corte")} style={styles.publicBtn}>
+              Agendar Corte
+            </button>
 
-          <h2 style={{ marginTop: "12px", marginBottom: "8px" }}>
-            Agende seu horário
-          </h2>
+            <button onClick={() => abrirWhatsApp("Barba")} style={styles.publicBtnSec}>
+              Agendar Barba
+            </button>
 
-          <p style={{ color: "#94a3b8", margin: 0 }}>
-            Barbearia: {slug}
-          </p>
+            <button onClick={() => abrirWhatsApp("Corte + Barba")} style={styles.publicBtnSec}>
+              Agendar Corte + Barba
+            </button>
+          </div>
         </div>
-
-        <input
-          placeholder="Seu nome"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          style={publicInputStyle()}
-        />
-
-        <input
-          placeholder="Seu telefone"
-          value={telefone}
-          onChange={(e) => setTelefone(formatarTelefonePublico(e.target.value))}
-          style={publicInputStyle()}
-        />
-
-        <select
-          value={servico}
-          onChange={(e) => setServico(e.target.value)}
-          style={publicInputStyle()}
-        >
-          <option value="">Selecione o serviço</option>
-          {servicosPublicos.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={profissional}
-          onChange={(e) => setProfissional(e.target.value)}
-          style={publicInputStyle()}
-        >
-          <option value="">Selecione o profissional</option>
-          {profissionaisPublicos.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          style={publicInputStyle()}
-        />
-
-        <input
-          type="time"
-          value={horario}
-          onChange={(e) => setHorario(e.target.value)}
-          style={publicInputStyle()}
-        />
-
-        <button
-          onClick={agendarPublico}
-          style={{
-            width: "100%",
-            background: "#f59e0b",
-            color: "#111827",
-            border: "none",
-            padding: "16px",
-            borderRadius: "14px",
-            fontWeight: "900",
-            cursor: "pointer",
-            fontSize: "16px",
-            marginTop: "8px",
-          }}
-        >
-          Solicitar agendamento
-        </button>
       </div>
     </div>
   );
-}
-
-function publicInputStyle() {
-  return {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "1px solid #334155",
-    marginBottom: "12px",
-    background: "#0f172a",
-    color: "#fff",
-    boxSizing: "border-box",
-    outline: "none",
-  };
 }
 
 function menuStyle(ativo, theme) {
@@ -1848,4 +1615,75 @@ function dangerButton() {
   };
 }
 
-}
+const styles = {
+  publicWrap: {
+    minHeight: "100vh",
+    background: "#020617",
+    color: "#fff",
+    padding: "30px",
+    fontFamily: "Arial, sans-serif",
+  },
+  publicContainer: {
+    maxWidth: "700px",
+    margin: "0 auto",
+    textAlign: "center",
+  },
+  publicCard: {
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "24px",
+    padding: "32px",
+  },
+  publicLogo: {
+    width: "80px",
+    height: "80px",
+    borderRadius: "20px",
+    background: "#f59e0b",
+    color: "#111827",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "38px",
+    margin: "0 auto 18px",
+  },
+  publicTitulo: {
+    color: "#f59e0b",
+    fontSize: "42px",
+    marginTop: 0,
+    marginBottom: "8px",
+  },
+  publicSubtitulo: {
+    color: "#94a3b8",
+    marginBottom: "24px",
+  },
+  publicInfo: {
+    color: "#cbd5e1",
+    marginBottom: "24px",
+  },
+  publicServicos: {
+    display: "grid",
+    gap: "12px",
+  },
+  publicBtn: {
+    width: "100%",
+    background: "#f59e0b",
+    color: "#111827",
+    border: "none",
+    padding: "16px",
+    borderRadius: "14px",
+    fontWeight: "900",
+    cursor: "pointer",
+    fontSize: "16px",
+  },
+  publicBtnSec: {
+    width: "100%",
+    background: "transparent",
+    color: "#fff",
+    border: "1px solid #334155",
+    padding: "16px",
+    borderRadius: "14px",
+    fontWeight: "800",
+    cursor: "pointer",
+    fontSize: "16px",
+  },
+};
