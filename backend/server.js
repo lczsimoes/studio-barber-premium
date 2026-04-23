@@ -26,6 +26,27 @@ mongoose
   });
 
 /* =========================
+   HELPERS
+========================= */
+
+function gerarSlug(nome) {
+  return String(nome || "studio-barber")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+function calcularValorPlano(plano) {
+  if (plano === "Premium") return 99.9;
+  if (plano === "Profissional") return 69.9;
+  return 39.9;
+}
+
+/* =========================
    SCHEMAS
 ========================= */
 
@@ -127,34 +148,21 @@ const Admin = mongoose.model("Admin", adminSchema);
 const Assinatura = mongoose.model("Assinatura", assinaturaSchema);
 
 /* =========================
-   HELPERS
+   FUNÇÕES INTERNAS
 ========================= */
-
-function gerarSlug(nome) {
-  return String(nome || "studio-barber")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
 
 async function criarPerfilPadraoSeNaoExistir(userId, email = "") {
   const perfilExistente = await Perfil.findOne({ userId: String(userId) });
   if (perfilExistente) return perfilExistente;
 
-  const nomeBase = email ? email.split("@")[0] : "Studio Barber";
-  const nomeBarbearia = `Studio Barber`;
-  const slug = gerarSlug(nomeBase || nomeBarbearia);
+  const nomeBase = email ? email.split("@")[0] : "studio-barber";
 
   const perfil = await Perfil.create({
     userId: String(userId),
-    nomeBarbearia,
+    nomeBarbearia: "Studio Barber",
     logoBarbearia: "",
     whatsapp: "",
-    slug,
+    slug: gerarSlug(nomeBase),
     abertura: "09:00",
     fechamento: "19:00",
     diasFuncionamento: {
@@ -172,16 +180,18 @@ async function criarPerfilPadraoSeNaoExistir(userId, email = "") {
 }
 
 async function criarAssinaturaPadraoSeNaoExistir(userId) {
-  const assinatura = await Assinatura.findOne({ userId: String(userId) });
-  if (assinatura) return assinatura;
+  const assinaturaExistente = await Assinatura.findOne({ userId: String(userId) });
+  if (assinaturaExistente) return assinaturaExistente;
 
-  return Assinatura.create({
+  const assinatura = await Assinatura.create({
     userId: String(userId),
     plano: "Básico",
     status: "ativo",
     vencimento: "",
-    valor: 39.9,
+    valor: calcularValorPlano("Básico"),
   });
+
+  return assinatura;
 }
 
 /* =========================
@@ -255,7 +265,9 @@ app.post("/login", async (req, res) => {
     const assinatura = await criarAssinaturaPadraoSeNaoExistir(user._id);
 
     if (assinatura.status === "bloqueado") {
-      return res.status(403).json({ message: "Conta bloqueada. Entre em contato com o administrador." });
+      return res.status(403).json({
+        message: "Conta bloqueada. Entre em contato com o administrador.",
+      });
     }
 
     await criarPerfilPadraoSeNaoExistir(user._id, user.email);
@@ -279,6 +291,7 @@ app.get("/perfil/:userId", async (req, res) => {
     const { userId } = req.params;
 
     let perfil = await Perfil.findOne({ userId: String(userId) });
+
     if (!perfil) {
       const user = await User.findById(userId);
       perfil = await criarPerfilPadraoSeNaoExistir(userId, user?.email || "");
@@ -314,15 +327,16 @@ app.put("/perfil/:userId", async (req, res) => {
         slug: gerarSlug(slug || nomeBarbearia || "studio-barber"),
         abertura: abertura || "09:00",
         fechamento: fechamento || "19:00",
-        diasFuncionamento: diasFuncionamento || {
-          segunda: true,
-          terca: true,
-          quarta: true,
-          quinta: true,
-          sexta: true,
-          sabado: true,
-          domingo: false,
-        },
+        diasFuncionamento:
+          diasFuncionamento || {
+            segunda: true,
+            terca: true,
+            quarta: true,
+            quinta: true,
+            sexta: true,
+            sabado: true,
+            domingo: false,
+          },
       },
       { new: true, upsert: true }
     );
@@ -392,9 +406,11 @@ app.delete("/servicos/:id", async (req, res) => {
 app.get("/agendamentos/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const agendamentos = await Agendamento.find({ userId: String(userId) }).sort({
-      createdAt: -1,
-    });
+
+    const agendamentos = await Agendamento.find({
+      userId: String(userId),
+    }).sort({ createdAt: -1 });
+
     return res.json(agendamentos);
   } catch (error) {
     console.error("Erro ao buscar agendamentos:", error);
@@ -410,17 +426,23 @@ app.get("/public/barbearias/:slug", async (req, res) => {
   try {
     const { slug } = req.params;
 
-    const perfil = await Perfil.findOne({ slug: String(slug).trim().toLowerCase() });
+    const perfil = await Perfil.findOne({
+      slug: String(slug).trim().toLowerCase(),
+    });
+
     if (!perfil) {
       return res.status(404).json({ message: "Barbearia não encontrada." });
     }
 
     const assinatura = await criarAssinaturaPadraoSeNaoExistir(perfil.userId);
+
     if (assinatura.status === "bloqueado") {
       return res.status(403).json({ message: "Barbearia temporariamente indisponível." });
     }
 
-    const servicos = await Servico.find({ userId: String(perfil.userId) }).sort({ createdAt: -1 });
+    const servicos = await Servico.find({
+      userId: String(perfil.userId),
+    }).sort({ createdAt: -1 });
 
     return res.json({
       userId: String(perfil.userId),
@@ -469,6 +491,7 @@ app.post("/public/agendar", async (req, res) => {
     }
 
     const assinatura = await criarAssinaturaPadraoSeNaoExistir(userId);
+
     if (assinatura.status === "bloqueado") {
       return res.status(403).json({ message: "Essa barbearia está bloqueada no momento." });
     }
@@ -522,7 +545,11 @@ app.post("/public/agendar", async (req, res) => {
 app.get("/notificacoes/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const notificacoes = await Notificacao.find({ userId: String(userId) }).sort({ createdAt: -1 });
+
+    const notificacoes = await Notificacao.find({
+      userId: String(userId),
+    }).sort({ createdAt: -1 });
+
     return res.json(notificacoes);
   } catch (error) {
     console.error("Erro ao buscar notificações:", error);
@@ -547,7 +574,7 @@ app.put("/notificacoes/marcar-vistas/:userId", async (req, res) => {
 });
 
 /* =========================
-   ADMIN
+   ADMIN MASTER
 ========================= */
 
 app.post("/admin/setup", async (req, res) => {
@@ -637,7 +664,9 @@ app.get("/admin/barbearias", async (req, res) => {
         plano: assinatura?.plano || "Básico",
         status: assinatura?.status || "ativo",
         vencimento: assinatura?.vencimento || "",
-        valor: assinatura?.valor ?? 39.9,
+        valor:
+          assinatura?.valor ??
+          calcularValorPlano(assinatura?.plano || "Básico"),
         totalServicos,
         totalAgendamentos,
         createdAt: user.createdAt,
@@ -656,14 +685,20 @@ app.put("/admin/assinatura/:userId", async (req, res) => {
     const { userId } = req.params;
     const { plano, status, vencimento, valor } = req.body;
 
+    const planoFinal = plano || "Básico";
+    const valorFinal =
+      valor !== undefined && valor !== null && valor !== ""
+        ? Number(valor)
+        : calcularValorPlano(planoFinal);
+
     const assinatura = await Assinatura.findOneAndUpdate(
       { userId: String(userId) },
       {
         userId: String(userId),
-        plano: plano || "Básico",
+        plano: planoFinal,
         status: status || "ativo",
         vencimento: vencimento || "",
-        valor: Number(valor || 39.9),
+        valor: valorFinal,
       },
       { new: true, upsert: true }
     );
