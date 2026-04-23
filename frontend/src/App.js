@@ -39,6 +39,12 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
+  const [modoAdmin, setModoAdmin] = useState(false);
+  const [admin, setAdmin] = useState(null);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminSenha, setAdminSenha] = useState("");
+  const [barbeariasAdmin, setBarbeariasAdmin] = useState([]);
+
   const [perfil, setPerfil] = useState({
     nomeBarbearia: "Studio Barber",
     logoBarbearia: "",
@@ -100,6 +106,13 @@ export default function App() {
   const totalServicos = servicos.length;
   const totalFuncionarios = funcionarios.length;
   const totalAgendamentos = agendamentos.length;
+
+  const totalBarbeariasAdmin = barbeariasAdmin.length;
+  const totalBarbeariasAtivasAdmin = barbeariasAdmin.filter((b) => b.status === "ativo").length;
+  const totalBarbeariasBloqueadasAdmin = barbeariasAdmin.filter((b) => b.status === "bloqueado").length;
+  const totalReceitaAdmin = barbeariasAdmin
+    .filter((b) => b.status === "ativo")
+    .reduce((acc, item) => acc + Number(item.valor || 0), 0);
 
   const linkPublico = perfil.slug
     ? `${window.location.origin}/agendar/${perfil.slug}`
@@ -259,6 +272,108 @@ export default function App() {
     }
   }
 
+  async function loginAdmin() {
+    if (!adminEmail.trim() || !adminSenha.trim()) {
+      alert("Preencha email e senha do admin.");
+      return;
+    }
+
+    try {
+      const res = await axios.post(
+        `${backend}/admin/login`,
+        {
+          email: adminEmail,
+          senha: adminSenha,
+        },
+        { timeout: 60000 }
+      );
+
+      setAdmin(res.data);
+      setModoAdmin(true);
+      await carregarPainelAdmin();
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao entrar no admin.");
+    }
+  }
+
+  async function carregarPainelAdmin() {
+    try {
+      const res = await axios.get(`${backend}/admin/barbearias`, {
+        timeout: 60000,
+      });
+      setBarbeariasAdmin(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao carregar painel admin.");
+    }
+  }
+
+  async function alterarStatusBarbearia(userId, novoStatus) {
+    try {
+      const alvo = barbeariasAdmin.find((item) => item.userId === userId);
+
+      await axios.put(
+        `${backend}/admin/assinatura/${userId}`,
+        {
+          plano: alvo?.plano || "Básico",
+          status: novoStatus,
+          vencimento: alvo?.vencimento || "",
+          valor: alvo?.valor || 39.9,
+        },
+        { timeout: 60000 }
+      );
+
+      await carregarPainelAdmin();
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao alterar status.");
+    }
+  }
+
+  async function atualizarPlanoBarbearia(userId, novoPlano) {
+    try {
+      const alvo = barbeariasAdmin.find((item) => item.userId === userId);
+
+      await axios.put(
+        `${backend}/admin/assinatura/${userId}`,
+        {
+          plano: novoPlano,
+          status: alvo?.status || "ativo",
+          vencimento: alvo?.vencimento || "",
+          valor:
+            novoPlano === "Premium" ? 99.9 :
+            novoPlano === "Profissional" ? 69.9 :
+            39.9,
+        },
+        { timeout: 60000 }
+      );
+
+      await carregarPainelAdmin();
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao atualizar plano.");
+    }
+  }
+
+  async function excluirBarbearia(userId) {
+    const confirmar = window.confirm("Tem certeza que deseja excluir essa barbearia?");
+    if (!confirmar) return;
+
+    try {
+      await axios.delete(`${backend}/admin/barbearias/${userId}`, {
+        timeout: 60000,
+      });
+      await carregarPainelAdmin();
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao excluir barbearia.");
+    }
+  }
+
+  function sairAdmin() {
+    setModoAdmin(false);
+    setAdmin(null);
+    setAdminEmail("");
+    setAdminSenha("");
+    setBarbeariasAdmin([]);
+  }
+
   function sair() {
     localStorage.removeItem("usuario_studio_barber");
     setUsuario(null);
@@ -337,7 +452,7 @@ export default function App() {
     }
   }
 
-    function adicionarCliente() {
+  function adicionarCliente() {
     if (!nomeCliente.trim() || !telefoneCliente.trim()) {
       alert("Preencha nome e telefone do cliente.");
       return;
@@ -465,6 +580,7 @@ export default function App() {
           servico: agendamentoServico,
           data: agendamentoData,
           horario: agendamentoHorario,
+          profissional: agendamentoProfissional,
         },
         { timeout: 60000 }
       );
@@ -493,6 +609,148 @@ export default function App() {
     return <PaginaPublica slug={slugPublico} />;
   }
 
+  if (modoAdmin && !admin) {
+    return (
+      <div style={styles.loginWrap}>
+        <div style={styles.loginCard}>
+          <h1 style={styles.loginTitulo}>Painel Admin Master</h1>
+          <p style={styles.loginTexto}>Entre como dono do sistema</p>
+
+          <input
+            placeholder="Email admin"
+            value={adminEmail}
+            onChange={(e) => setAdminEmail(e.target.value)}
+            style={inputStyle(theme)}
+          />
+
+          <input
+            type="password"
+            placeholder="Senha admin"
+            value={adminSenha}
+            onChange={(e) => setAdminSenha(e.target.value)}
+            style={inputStyle(theme)}
+          />
+
+          <button onClick={loginAdmin} style={styles.botaoGold}>
+            Entrar no admin
+          </button>
+
+          <button onClick={() => setModoAdmin(false)} style={styles.botaoVoltar}>
+            Voltar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (modoAdmin && admin) {
+    return (
+      <div style={styles.painelWrap}>
+        <aside style={styles.sidebar}>
+          <div style={styles.sidebarTopo}>
+            <div style={styles.logoFake}>👑</div>
+            <h2 style={styles.sidebarTitulo}>Admin Master</h2>
+            <p style={styles.sidebarEmail}>{admin.email}</p>
+          </div>
+
+          <button onClick={carregarPainelAdmin} style={styles.botaoGoldInline}>
+            Atualizar lista
+          </button>
+
+          <button onClick={sairAdmin} style={styles.botaoDangerFull}>
+            Sair do admin
+          </button>
+        </aside>
+
+        <main style={styles.main}>
+          <h1 style={styles.mainTitulo}>Painel do Dono</h1>
+
+          <div style={styles.gridResumo}>
+            <div style={styles.cardResumo}>
+              <p style={styles.cardResumoLabel}>Barbearias</p>
+              <h2 style={styles.cardResumoValor}>{totalBarbeariasAdmin}</h2>
+            </div>
+
+            <div style={styles.cardResumo}>
+              <p style={styles.cardResumoLabel}>Ativas</p>
+              <h2 style={styles.cardResumoValor}>{totalBarbeariasAtivasAdmin}</h2>
+            </div>
+
+            <div style={styles.cardResumo}>
+              <p style={styles.cardResumoLabel}>Bloqueadas</p>
+              <h2 style={styles.cardResumoValor}>{totalBarbeariasBloqueadasAdmin}</h2>
+            </div>
+
+            <div style={styles.cardResumo}>
+              <p style={styles.cardResumoLabel}>Receita mensal</p>
+              <h2 style={styles.cardResumoValor}>R$ {totalReceitaAdmin.toFixed(2)}</h2>
+            </div>
+          </div>
+
+          <div style={styles.gridLista}>
+            {barbeariasAdmin.map((item) => (
+              <div key={item.userId} style={styles.cardItem}>
+                <h3 style={styles.itemTitulo}>{item.nomeBarbearia}</h3>
+                <p style={styles.itemTexto}>📧 {item.email}</p>
+                <p style={styles.itemTexto}>📱 {item.whatsapp || "Sem WhatsApp"}</p>
+                <p style={styles.itemTexto}>🔗 {item.slug || "Sem slug"}</p>
+                <p style={styles.itemTexto}>📅 Vencimento: {item.vencimento || "Não definido"}</p>
+                <p style={styles.itemTexto}>✂️ Serviços: {item.totalServicos}</p>
+                <p style={styles.itemTexto}>📆 Agendamentos: {item.totalAgendamentos}</p>
+
+                <div style={{ marginBottom: "10px" }}>
+                  <label style={styles.labelMini}>Plano</label>
+                  <select
+                    value={item.plano || "Básico"}
+                    onChange={(e) => atualizarPlanoBarbearia(item.userId, e.target.value)}
+                    style={styles.input}
+                  >
+                    <option value="Básico">Básico</option>
+                    <option value="Profissional">Profissional</option>
+                    <option value="Premium">Premium</option>
+                  </select>
+                </div>
+
+                <p
+                  style={{
+                    ...styles.itemTexto,
+                    color: item.status === "ativo" ? "#22c55e" : "#ef4444",
+                    fontWeight: "800",
+                  }}
+                >
+                  Status: {item.status}
+                </p>
+
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => alterarStatusBarbearia(item.userId, "ativo")}
+                    style={styles.botaoGoldInline}
+                  >
+                    Ativar
+                  </button>
+
+                  <button
+                    onClick={() => alterarStatusBarbearia(item.userId, "bloqueado")}
+                    style={styles.botaoSecundarioInline}
+                  >
+                    Bloquear
+                  </button>
+
+                  <button
+                    onClick={() => excluirBarbearia(item.userId)}
+                    style={styles.botaoDangerInline}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (tela === "home") {
     return (
       <div style={styles.homeWrap}>
@@ -500,9 +758,15 @@ export default function App() {
           <div style={styles.topoHome}>
             <h1 style={styles.logoTitulo}>Studio Barber</h1>
 
-            <button onClick={() => setTela("login")} style={styles.botaoGoldInline}>
-              Entrar no sistema
-            </button>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <button onClick={() => setTela("login")} style={styles.botaoGoldInline}>
+                Entrar no sistema
+              </button>
+
+              <button onClick={() => setModoAdmin(true)} style={styles.botaoSecundarioInline}>
+                Painel Admin
+              </button>
+            </div>
           </div>
 
           <div style={styles.hero}>
@@ -521,8 +785,8 @@ export default function App() {
                 Acessar sistema
               </button>
 
-              <button onClick={() => setTela("login")} style={styles.botaoSecundarioInline}>
-                Criar conta
+              <button onClick={() => setModoAdmin(true)} style={styles.botaoSecundarioInline}>
+                Entrar no admin
               </button>
             </div>
           </div>
@@ -544,8 +808,8 @@ export default function App() {
             </div>
 
             <div style={styles.cardHome}>
-              <h3 style={styles.cardTitulo}>👨‍💼 Funcionários</h3>
-              <p style={styles.cardTexto}>Gerencie equipe com foto, cargo e especialidade.</p>
+              <h3 style={styles.cardTitulo}>👑 Admin Master</h3>
+              <p style={styles.cardTexto}>Controle todas as barbearias em um painel só.</p>
             </div>
           </div>
         </div>
@@ -783,7 +1047,7 @@ export default function App() {
           </>
         )}
 
-                {tela === "funcionarios" && (
+        {tela === "funcionarios" && (
           <>
             <h1 style={styles.mainTitulo}>Funcionários</h1>
 
@@ -1739,4 +2003,3 @@ const styles = {
     outline: "none",
   },
 };
-
