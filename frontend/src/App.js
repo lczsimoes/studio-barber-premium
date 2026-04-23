@@ -34,11 +34,9 @@ export default function App() {
   const slugPublico = paginaPublica ? partes[1] : "";
 
   const [tela, setTela] = useState("home");
-
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
-
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(false);
 
@@ -80,11 +78,15 @@ export default function App() {
 
   useEffect(() => {
     const salvo = localStorage.getItem("usuario_studio_barber");
-    if (salvo) {
+    if (!salvo) return;
+
+    try {
       const user = JSON.parse(salvo);
       setUsuario(user);
       setTela("dashboard");
-      carregarDadosLocais(user.id);
+      carregarTudo(user.id);
+    } catch (error) {
+      console.error(error);
     }
   }, []);
 
@@ -102,15 +104,17 @@ export default function App() {
 
   const linkPublico = perfil.slug
     ? `${window.location.origin}/agendar/${perfil.slug}`
-    : "Defina o nome da barbearia para gerar o link";
+    : "Salve a barbearia para gerar o link";
 
   function gerarSlug(nome) {
-    return nome
-      .toLowerCase()
+    return String(nome || "studio-barber")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+      .replace(/-+/g, "-");
   }
 
   function formatarTelefone(valor) {
@@ -127,36 +131,68 @@ export default function App() {
       .replace(/(\d{5})(\d)/, "$1-$2");
   }
 
-  function salvarLocal(chave, valor) {
-    if (!usuario?.id) return;
-    localStorage.setItem(`${chave}_${usuario.id}`, JSON.stringify(valor));
+  function salvarLocal(chave, valor, userId = usuario?.id) {
+    if (!userId) return;
+    localStorage.setItem(`${chave}_${userId}`, JSON.stringify(valor));
   }
 
-  function carregarDadosLocais(userId) {
+  function carregarLocais(userId) {
     try {
-      const perfilSalvo = localStorage.getItem(`perfil_studio_barber_${userId}`);
       const clientesSalvos = localStorage.getItem(`clientes_studio_barber_${userId}`);
       const funcionariosSalvos = localStorage.getItem(`funcionarios_studio_barber_${userId}`);
-      const agendamentosSalvos = localStorage.getItem(`agendamentos_studio_barber_${userId}`);
 
-      if (perfilSalvo) setPerfil(JSON.parse(perfilSalvo));
       if (clientesSalvos) setClientes(JSON.parse(clientesSalvos));
       if (funcionariosSalvos) setFuncionarios(JSON.parse(funcionariosSalvos));
-      if (agendamentosSalvos) setAgendamentos(JSON.parse(agendamentosSalvos));
     } catch (error) {
       console.error("Erro ao carregar dados locais:", error);
     }
+  }
 
-    carregarServicosBackend(userId);
+  async function carregarTudo(userId) {
+    carregarLocais(userId);
+    await Promise.all([
+      carregarPerfil(userId),
+      carregarServicosBackend(userId),
+      carregarAgendamentosBackend(userId),
+    ]);
+  }
+
+  async function carregarPerfil(userId) {
+    try {
+      const res = await axios.get(`${backend}/perfil/${userId}`, { timeout: 60000 });
+      if (res.data) {
+        setPerfil({
+          nomeBarbearia: res.data.nomeBarbearia || "Studio Barber",
+          logoBarbearia: res.data.logoBarbearia || "",
+          whatsapp: res.data.whatsapp || "",
+          slug: res.data.slug || "",
+          abertura: res.data.abertura || "09:00",
+          fechamento: res.data.fechamento || "19:00",
+          diasFuncionamento: res.data.diasFuncionamento || diasPadrao,
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar perfil:", error);
+    }
   }
 
   async function carregarServicosBackend(userId) {
     try {
-      const res = await axios.get(`${backend}/servicos/${userId}`);
+      const res = await axios.get(`${backend}/servicos/${userId}`, { timeout: 60000 });
       setServicos(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Erro ao carregar serviços:", error);
       setServicos([]);
+    }
+  }
+
+  async function carregarAgendamentosBackend(userId) {
+    try {
+      const res = await axios.get(`${backend}/agendamentos/${userId}`, { timeout: 60000 });
+      setAgendamentos(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error("Erro ao carregar agendamentos:", error);
+      setAgendamentos([]);
     }
   }
 
@@ -169,10 +205,11 @@ export default function App() {
     setCarregando(true);
 
     try {
-      const res = await axios.post(`${backend}/login`, {
-        email,
-        senha,
-      });
+      const res = await axios.post(
+        `${backend}/login`,
+        { email, senha },
+        { timeout: 60000 }
+      );
 
       const user = {
         id: res.data.userId,
@@ -182,12 +219,12 @@ export default function App() {
       localStorage.setItem("usuario_studio_barber", JSON.stringify(user));
       setUsuario(user);
       setTela("dashboard");
-      carregarDadosLocais(user.id);
+      await carregarTudo(user.id);
     } catch (error) {
       alert(error.response?.data?.message || "Erro ao entrar.");
+    } finally {
+      setCarregando(false);
     }
-
-    setCarregando(false);
   }
 
   async function registrar() {
@@ -204,18 +241,19 @@ export default function App() {
     setCarregando(true);
 
     try {
-      await axios.post(`${backend}/register`, {
-        email,
-        senha,
-      });
+      await axios.post(
+        `${backend}/register`,
+        { email, senha },
+        { timeout: 60000 }
+      );
 
       alert("Conta criada com sucesso.");
       setTela("login");
     } catch (error) {
       alert(error.response?.data?.message || "Erro ao cadastrar conta.");
+    } finally {
+      setCarregando(false);
     }
-
-    setCarregando(false);
   }
 
   function sair() {
@@ -240,12 +278,10 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const novoPerfil = {
-        ...perfil,
+      setPerfil((prev) => ({
+        ...prev,
         logoBarbearia: reader.result,
-      };
-      setPerfil(novoPerfil);
-      salvarLocal("perfil_studio_barber", novoPerfil);
+      }));
     };
     reader.readAsDataURL(file);
   }
@@ -261,17 +297,38 @@ export default function App() {
     reader.readAsDataURL(file);
   }
 
-  function salvarPerfil() {
-    if (!usuario) return;
+  async function salvarPerfil() {
+    if (!usuario?.id) return;
 
-    const novoPerfil = {
-      ...perfil,
-      slug: gerarSlug(perfil.nomeBarbearia),
-    };
+    try {
+      const payload = {
+        ...perfil,
+        slug: gerarSlug(perfil.slug || perfil.nomeBarbearia),
+      };
 
-    setPerfil(novoPerfil);
-    salvarLocal("perfil_studio_barber", novoPerfil);
-    alert("Perfil salvo com sucesso.");
+      const res = await axios.put(
+        `${backend}/perfil/${usuario.id}`,
+        payload,
+        { timeout: 60000 }
+      );
+
+      const perfilSalvo = res.data?.perfil || payload;
+
+      const novoPerfil = {
+        nomeBarbearia: perfilSalvo.nomeBarbearia || "Studio Barber",
+        logoBarbearia: perfilSalvo.logoBarbearia || "",
+        whatsapp: perfilSalvo.whatsapp || "",
+        slug: perfilSalvo.slug || "",
+        abertura: perfilSalvo.abertura || "09:00",
+        fechamento: perfilSalvo.fechamento || "19:00",
+        diasFuncionamento: perfilSalvo.diasFuncionamento || diasPadrao,
+      };
+
+      setPerfil(novoPerfil);
+      alert("Perfil salvo com sucesso.");
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao salvar perfil.");
+    }
   }
 
   function adicionarCliente() {
@@ -307,12 +364,16 @@ export default function App() {
     }
 
     try {
-      const res = await axios.post(`${backend}/servicos`, {
-        nome: nomeServico.trim(),
-        preco,
-        duracao,
-        userId: usuario.id,
-      });
+      const res = await axios.post(
+        `${backend}/servicos`,
+        {
+          nome: nomeServico.trim(),
+          preco,
+          duracao,
+          userId: usuario.id,
+        },
+        { timeout: 60000 }
+      );
 
       const atualizados = [...servicos, res.data];
       setServicos(atualizados);
@@ -321,16 +382,16 @@ export default function App() {
       setPreco("");
       setDuracao("");
     } catch (error) {
-      alert("Erro ao adicionar serviço.");
+      alert(error.response?.data?.message || "Erro ao adicionar serviço.");
     }
   }
 
   async function apagarServico(id) {
     try {
-      await axios.delete(`${backend}/servicos/${id}`);
+      await axios.delete(`${backend}/servicos/${id}`, { timeout: 60000 });
       setServicos((prev) => prev.filter((item) => item._id !== id));
-    } catch {
-      alert("Erro ao apagar serviço.");
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao apagar serviço.");
     }
   }
 
@@ -376,11 +437,10 @@ export default function App() {
     salvarLocal("funcionarios_studio_barber", atualizados);
   }
 
-  function adicionarAgendamentoInterno() {
+  async function adicionarAgendamentoInterno() {
     if (
       !agendamentoCliente ||
       !agendamentoServico ||
-      !agendamentoProfissional ||
       !agendamentoData ||
       !agendamentoHorario
     ) {
@@ -388,30 +448,37 @@ export default function App() {
       return;
     }
 
-    const novo = {
-      id: Date.now(),
-      cliente: agendamentoCliente,
-      servico: agendamentoServico,
-      profissional: agendamentoProfissional,
-      data: agendamentoData,
-      horario: agendamentoHorario,
-    };
+    try {
+      const res = await axios.post(
+        `${backend}/public/agendar`,
+        {
+          userId: usuario.id,
+          cliente: agendamentoCliente,
+          telefone:
+            clientes.find((c) => c.nome === agendamentoCliente)?.telefone || "",
+          servico: agendamentoServico,
+          data: agendamentoData,
+          horario: agendamentoHorario,
+        },
+        { timeout: 60000 }
+      );
 
-    const atualizados = [...agendamentos, novo];
-    setAgendamentos(atualizados);
-    salvarLocal("agendamentos_studio_barber", atualizados);
+      setAgendamentos((prev) => [res.data.agendamento, ...prev]);
 
-    setAgendamentoCliente("");
-    setAgendamentoServico("");
-    setAgendamentoProfissional("");
-    setAgendamentoData("");
-    setAgendamentoHorario("");
+      setAgendamentoCliente("");
+      setAgendamentoServico("");
+      setAgendamentoProfissional("");
+      setAgendamentoData("");
+      setAgendamentoHorario("");
+      alert("Agendamento criado com sucesso.");
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao criar agendamento.");
+    }
   }
 
   function removerAgendamento(id) {
-    const atualizados = agendamentos.filter((item) => item.id !== id);
+    const atualizados = agendamentos.filter((item) => item._id !== id && item.id !== id);
     setAgendamentos(atualizados);
-    salvarLocal("agendamentos_studio_barber", atualizados);
   }
 
   if (paginaPublica && slugPublico) {
@@ -420,304 +487,59 @@ export default function App() {
 
   if (tela === "home") {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#020617",
-          color: "#fff",
-          padding: "40px 20px",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "60px",
-              flexWrap: "wrap",
-              gap: "16px",
-            }}
-          >
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "34px",
-                fontWeight: "900",
-                color: "#f59e0b",
-              }}
-            >
-              Studio Barber
-            </h1>
+      <div style={styles.homeWrap}>
+        <div style={styles.container}>
+          <div style={styles.topoHome}>
+            <h1 style={styles.logoTitulo}>Studio Barber</h1>
 
-            <button
-              onClick={() => setTela("login")}
-              style={{
-                background: "#f59e0b",
-                color: "#111827",
-                border: "none",
-                padding: "14px 24px",
-                borderRadius: "12px",
-                fontWeight: "800",
-                cursor: "pointer",
-              }}
-            >
+            <button onClick={() => setTela("login")} style={styles.botaoGoldInline}>
               Entrar no sistema
             </button>
           </div>
 
-          <div style={{ textAlign: "center", marginBottom: "80px" }}>
-            <h2
-              style={{
-                fontSize: "58px",
-                lineHeight: "1.1",
-                margin: 0,
-                fontWeight: "900",
-              }}
-            >
+          <div style={styles.hero}>
+            <h2 style={styles.heroTitulo}>
               O sistema premium para{" "}
               <span style={{ color: "#f59e0b" }}>barbearias modernas</span>
             </h2>
 
-            <p
-              style={{
-                maxWidth: "760px",
-                margin: "24px auto",
-                color: "#94a3b8",
-                fontSize: "20px",
-                lineHeight: "1.6",
-              }}
-            >
-              Organize clientes, receba agendamentos, controle sua equipe e
-              profissionalize sua barbearia com um sistema premium de verdade.
+            <p style={styles.heroTexto}>
+              Organize clientes, receba agendamentos, controle serviços e equipe,
+              e use um link público profissional para seus clientes.
             </p>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "16px",
-                justifyContent: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                onClick={() => setTela("login")}
-                style={{
-                  background: "#f59e0b",
-                  color: "#111827",
-                  border: "none",
-                  padding: "18px 28px",
-                  borderRadius: "14px",
-                  fontWeight: "900",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                }}
-              >
+            <div style={styles.heroBotoes}>
+              <button onClick={() => setTela("login")} style={styles.botaoGoldInline}>
                 Acessar sistema
               </button>
 
-              <button
-                onClick={() => setTela("login")}
-                style={{
-                  background: "transparent",
-                  color: "#fff",
-                  border: "1px solid #334155",
-                  padding: "18px 28px",
-                  borderRadius: "14px",
-                  fontWeight: "800",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                }}
-              >
-                Ver demonstração
+              <button onClick={() => setTela("login")} style={styles.botaoSecundarioInline}>
+                Criar conta
               </button>
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-              gap: "18px",
-              marginBottom: "70px",
-            }}
-          >
-            {[
-              ["+300", "Barbearias prontas para crescer"],
-              ["24h", "Agendamento online automático"],
-              ["Premium", "Visual moderno e elegante"],
-              ["Rápido", "Fácil de configurar e usar"],
-            ].map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "#111827",
-                  padding: "24px",
-                  borderRadius: "18px",
-                  border: "1px solid #1f2937",
-                }}
-              >
-                <h3
-                  style={{
-                    margin: 0,
-                    color: "#f59e0b",
-                    fontSize: "34px",
-                  }}
-                >
-                  {item[0]}
-                </h3>
+          <div style={styles.gridCards}>
+            <div style={styles.cardHome}>
+              <h3 style={styles.cardTitulo}>📅 Agenda inteligente</h3>
+              <p style={styles.cardTexto}>Receba pedidos de agendamento pelo seu link público real.</p>
+            </div>
 
-                <p style={{ color: "#94a3b8", marginBottom: 0 }}>{item[1]}</p>
-              </div>
-            ))}
-          </div>
+            <div style={styles.cardHome}>
+              <h3 style={styles.cardTitulo}>👥 Clientes</h3>
+              <p style={styles.cardTexto}>Cadastre e organize seus clientes com facilidade.</p>
+            </div>
 
-          <div style={{ marginBottom: "70px" }}>
-            <h2
-              style={{
-                textAlign: "center",
-                fontSize: "44px",
-                marginBottom: "40px",
-              }}
-            >
-              Tudo que sua barbearia precisa
-            </h2>
+            <div style={styles.cardHome}>
+              <h3 style={styles.cardTitulo}>✂️ Serviços</h3>
+              <p style={styles.cardTexto}>Defina preços e duração dos seus serviços.</p>
+            </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-              }}
-            >
-              {[
-                "Cadastro completo de clientes",
-                "Serviços com preço e duração",
-                "Funcionários organizados",
-                "Agendamentos rápidos",
-                "Link online para cliente",
-                "Visual premium preto e dourado",
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: "#111827",
-                    padding: "24px",
-                    borderRadius: "18px",
-                    border: "1px solid #1f2937",
-                    fontWeight: "700",
-                  }}
-                >
-                  ✂️ {item}
-                </div>
-              ))}
+            <div style={styles.cardHome}>
+              <h3 style={styles.cardTitulo}>👨‍💼 Funcionários</h3>
+              <p style={styles.cardTexto}>Gerencie equipe com foto, cargo e especialidade.</p>
             </div>
           </div>
-
-          <div style={{ marginBottom: "70px" }}>
-            <h2
-              style={{
-                textAlign: "center",
-                fontSize: "44px",
-                marginBottom: "40px",
-              }}
-            >
-              Como funciona
-            </h2>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-              }}
-            >
-              {[
-                ["1", "Crie sua conta"],
-                ["2", "Configure sua barbearia"],
-                ["3", "Receba clientes e agendamentos"],
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: "#111827",
-                    padding: "28px",
-                    borderRadius: "18px",
-                    border: "1px solid #1f2937",
-                    textAlign: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "56px",
-                      height: "56px",
-                      borderRadius: "50%",
-                      background: "#f59e0b",
-                      color: "#111827",
-                      margin: "0 auto 18px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "900",
-                      fontSize: "22px",
-                    }}
-                  >
-                    {item[0]}
-                  </div>
-
-                  <h3 style={{ margin: 0 }}>{item[1]}</h3>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginBottom: "70px",
-              background: "#111827",
-              padding: "50px 20px",
-              borderRadius: "24px",
-              textAlign: "center",
-              border: "1px solid #1f2937",
-            }}
-          >
-            <h2 style={{ fontSize: "44px", marginTop: 0, marginBottom: "16px" }}>
-              Pronto para profissionalizar sua barbearia?
-            </h2>
-
-            <p
-              style={{
-                color: "#94a3b8",
-                maxWidth: "700px",
-                margin: "0 auto 24px",
-                lineHeight: "1.7",
-              }}
-            >
-              Organize seu negócio, tenha uma presença premium e entregue uma
-              experiência melhor para cada cliente.
-            </p>
-
-            <button
-              onClick={() => setTela("login")}
-              style={{
-                background: "#f59e0b",
-                color: "#111827",
-                border: "none",
-                padding: "18px 28px",
-                borderRadius: "14px",
-                fontWeight: "900",
-                cursor: "pointer",
-                fontSize: "16px",
-              }}
-            >
-              Começar agora
-            </button>
-          </div>
-
-          <p style={{ textAlign: "center", color: "#64748b", marginBottom: 0 }}>
-            © Studio Barber - Sistema Premium para Barbearias
-          </p>
         </div>
       </div>
     );
@@ -725,71 +547,21 @@ export default function App() {
 
   if (tela === "login") {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: theme.bg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "30px",
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: "460px",
-            background: theme.card,
-            border: `1px solid ${theme.border}`,
-            borderRadius: "24px",
-            padding: "34px",
-            boxShadow: theme.shadow,
-          }}
-        >
+      <div style={styles.loginWrap}>
+        <div style={styles.loginCard}>
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
             {perfil.logoBarbearia ? (
               <img
                 src={perfil.logoBarbearia}
                 alt="Logo"
-                style={{
-                  width: "72px",
-                  height: "72px",
-                  borderRadius: "18px",
-                  objectFit: "cover",
-                }}
+                style={styles.loginLogo}
               />
             ) : (
-              <div
-                style={{
-                  width: "72px",
-                  height: "72px",
-                  borderRadius: "18px",
-                  background: theme.primary,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "34px",
-                  margin: "0 auto",
-                }}
-              >
-                💈
-              </div>
+              <div style={styles.loginLogoFake}>💈</div>
             )}
 
-            <h1
-              style={{
-                marginTop: "18px",
-                marginBottom: "10px",
-                color: theme.text,
-                fontSize: "34px",
-              }}
-            >
-              Entrar no sistema
-            </h1>
-
-            <p style={{ color: theme.textSoft }}>
-              Faça login ou crie sua conta agora.
-            </p>
+            <h1 style={styles.loginTitulo}>Entrar no sistema</h1>
+            <p style={styles.loginTexto}>Faça login ou crie sua conta agora.</p>
           </div>
 
           <input
@@ -805,62 +577,30 @@ export default function App() {
               placeholder="Sua senha"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              style={{
-                ...inputStyle(theme),
-                paddingRight: "50px",
-              }}
+              style={{ ...inputStyle(theme), paddingRight: "50px" }}
             />
 
             <button
               type="button"
               onClick={() => setMostrarSenha(!mostrarSenha)}
-              style={{
-                position: "absolute",
-                right: "14px",
-                top: "13px",
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: "18px",
-              }}
+              style={styles.botaoOlho}
             >
               {mostrarSenha ? "🙈" : "👁️"}
             </button>
           </div>
 
-          <button onClick={login} style={primaryButton(theme)}>
+          <button onClick={login} style={styles.botaoGold}>
             {carregando ? "Entrando..." : "Entrar"}
           </button>
 
           <button
             onClick={registrar}
-            style={{
-              width: "100%",
-              background: "transparent",
-              color: theme.text,
-              border: `1px solid ${theme.border}`,
-              padding: "16px",
-              borderRadius: "14px",
-              fontWeight: "800",
-              cursor: "pointer",
-              marginTop: "12px",
-            }}
+            style={{ ...styles.botaoSecundario, marginTop: "12px" }}
           >
             Criar conta
           </button>
 
-          <button
-            onClick={() => setTela("home")}
-            style={{
-              width: "100%",
-              background: "transparent",
-              color: theme.textSoft,
-              border: "none",
-              padding: "12px",
-              cursor: "pointer",
-              marginTop: "10px",
-            }}
-          >
+          <button onClick={() => setTela("home")} style={styles.botaoVoltar}>
             Voltar
           </button>
         </div>
@@ -869,193 +609,86 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: theme.bg,
-      }}
-    >
-      <aside
-        style={{
-          width: "270px",
-          background: theme.sidebar,
-          borderRight: `1px solid ${theme.border}`,
-          padding: "24px",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: "26px" }}>
+    <div style={styles.painelWrap}>
+      <aside style={styles.sidebar}>
+        <div style={styles.sidebarTopo}>
           {perfil.logoBarbearia ? (
-            <img
-              src={perfil.logoBarbearia}
-              alt="Logo"
-              style={{
-                width: "72px",
-                height: "72px",
-                borderRadius: "18px",
-                objectFit: "cover",
-              }}
-            />
+            <img src={perfil.logoBarbearia} alt="Logo" style={styles.logoImg} />
           ) : (
-            <div
-              style={{
-                width: "72px",
-                height: "72px",
-                borderRadius: "18px",
-                background: theme.primary,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "34px",
-                margin: "0 auto",
-              }}
-            >
-              💈
-            </div>
+            <div style={styles.logoFake}>💈</div>
           )}
 
-          <h2
-            style={{
-              color: theme.primary,
-              marginTop: "14px",
-              marginBottom: "6px",
-            }}
-          >
-            {perfil.nomeBarbearia}
-          </h2>
-
-          <p style={{ color: theme.textSoft, fontSize: "14px" }}>
-            {usuario?.email}
-          </p>
+          <h2 style={styles.sidebarTitulo}>{perfil.nomeBarbearia}</h2>
+          <p style={styles.sidebarEmail}>{usuario?.email}</p>
         </div>
 
         <button onClick={() => setTela("dashboard")} style={menuStyle(tela === "dashboard", theme)}>
           📊 Dashboard
         </button>
-
         <button onClick={() => setTela("clientes")} style={menuStyle(tela === "clientes", theme)}>
           👥 Clientes
         </button>
-
         <button onClick={() => setTela("servicos")} style={menuStyle(tela === "servicos", theme)}>
           ✂️ Serviços
         </button>
-
         <button onClick={() => setTela("funcionarios")} style={menuStyle(tela === "funcionarios", theme)}>
           👨‍💼 Funcionários
         </button>
-
         <button onClick={() => setTela("agendamentos")} style={menuStyle(tela === "agendamentos", theme)}>
           📅 Agendamentos
         </button>
-
         <button onClick={() => setTela("barbearia")} style={menuStyle(tela === "barbearia", theme)}>
           🏪 Barbearia
         </button>
-
         <button onClick={() => setTela("link")} style={menuStyle(tela === "link", theme)}>
           🔗 Link Cliente
         </button>
 
-        <button
-          onClick={trocarConta}
-          style={{
-            width: "100%",
-            marginTop: "24px",
-            background: theme.card,
-            color: theme.text,
-            border: `1px solid ${theme.border}`,
-            padding: "14px",
-            borderRadius: "12px",
-            fontWeight: "800",
-            cursor: "pointer",
-          }}
-        >
+        <button onClick={trocarConta} style={styles.botaoTrocar}>
           Trocar conta
         </button>
 
-        <button
-          onClick={sair}
-          style={{
-            width: "100%",
-            marginTop: "10px",
-            background: "#dc2626",
-            color: "#fff",
-            border: "none",
-            padding: "14px",
-            borderRadius: "12px",
-            fontWeight: "800",
-            cursor: "pointer",
-          }}
-        >
+        <button onClick={sair} style={styles.botaoDangerFull}>
           Sair
         </button>
       </aside>
 
-      <main
-        style={{
-          flex: 1,
-          padding: "30px",
-          background: theme.content,
-        }}
-      >
+      <main style={styles.main}>
         {tela === "dashboard" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Dashboard Premium 💈
-            </h1>
+            <h1 style={styles.mainTitulo}>Dashboard Premium 💈</h1>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-                gap: "18px",
-                marginBottom: "24px",
-              }}
-            >
-              <div style={cardInfoStyle(theme)}>
-                <p style={{ color: theme.textSoft }}>💰 Faturamento</p>
-                <h2 style={{ color: theme.text }}>R$ {faturamento}</h2>
+            <div style={styles.gridResumo}>
+              <div style={styles.cardResumo}>
+                <p style={styles.cardResumoLabel}>💰 Faturamento</p>
+                <h2 style={styles.cardResumoValor}>R$ {faturamento.toFixed(2)}</h2>
               </div>
 
-              <div style={cardInfoStyle(theme)}>
-                <p style={{ color: theme.textSoft }}>👥 Clientes</p>
-                <h2 style={{ color: theme.text }}>{totalClientes}</h2>
+              <div style={styles.cardResumo}>
+                <p style={styles.cardResumoLabel}>👥 Clientes</p>
+                <h2 style={styles.cardResumoValor}>{totalClientes}</h2>
               </div>
 
-              <div style={cardInfoStyle(theme)}>
-                <p style={{ color: theme.textSoft }}>✂️ Serviços</p>
-                <h2 style={{ color: theme.text }}>{totalServicos}</h2>
+              <div style={styles.cardResumo}>
+                <p style={styles.cardResumoLabel}>✂️ Serviços</p>
+                <h2 style={styles.cardResumoValor}>{totalServicos}</h2>
               </div>
 
-              <div style={cardInfoStyle(theme)}>
-                <p style={{ color: theme.textSoft }}>👨‍💼 Funcionários</p>
-                <h2 style={{ color: theme.text }}>{totalFuncionarios}</h2>
+              <div style={styles.cardResumo}>
+                <p style={styles.cardResumoLabel}>👨‍💼 Funcionários</p>
+                <h2 style={styles.cardResumoValor}>{totalFuncionarios}</h2>
               </div>
 
-              <div style={cardInfoStyle(theme)}>
-                <p style={{ color: theme.textSoft }}>📅 Agendamentos</p>
-                <h2 style={{ color: theme.text }}>{totalAgendamentos}</h2>
+              <div style={styles.cardResumo}>
+                <p style={styles.cardResumoLabel}>📅 Agendamentos</p>
+                <h2 style={styles.cardResumoValor}>{totalAgendamentos}</h2>
               </div>
             </div>
 
-            <div style={panelStyle(theme)}>
-              <h2 style={{ color: theme.text, marginTop: 0 }}>
-                Resumo da operação
-              </h2>
-
-              <p style={{ color: theme.textSoft, lineHeight: "1.7" }}>
-                Seu sistema premium está pronto para cadastrar clientes,
-                organizar serviços, funcionários e receber agendamentos com
-                visual profissional.
-              </p>
-
-              <div style={linkBoxStyle(theme)}>{linkPublico}</div>
-
-              <button
-                onClick={() => navigator.clipboard.writeText(linkPublico)}
-                style={primaryButton(theme)}
-              >
+            <div style={styles.cardBloco}>
+              <h2 style={styles.subtitulo}>Seu link público</h2>
+              <div style={styles.linkBox}>{linkPublico}</div>
+              <button onClick={() => navigator.clipboard.writeText(linkPublico)} style={styles.botaoGoldInline}>
                 Copiar link do cliente
               </button>
             </div>
@@ -1064,44 +697,34 @@ export default function App() {
 
         {tela === "clientes" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Clientes
-            </h1>
+            <h1 style={styles.mainTitulo}>Clientes</h1>
 
-            <div style={panelStyle(theme)}>
+            <div style={styles.cardBloco}>
               <input
                 placeholder="Nome do cliente"
                 value={nomeCliente}
                 onChange={(e) => setNomeCliente(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="Telefone do cliente"
                 value={telefoneCliente}
                 onChange={(e) => setTelefoneCliente(formatarTelefone(e.target.value))}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
-              <button onClick={adicionarCliente} style={primaryButton(theme)}>
+              <button onClick={adicionarCliente} style={styles.botaoGoldInline}>
                 Adicionar cliente
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-                marginTop: "20px",
-              }}
-            >
+            <div style={styles.gridLista}>
               {clientes.map((item) => (
-                <div key={item.id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
-                  <p style={{ color: theme.textSoft }}>{item.telefone}</p>
-
-                  <button onClick={() => removerCliente(item.id)} style={dangerButton()}>
+                <div key={item.id} style={styles.cardItem}>
+                  <h3 style={styles.itemTitulo}>{item.nome}</h3>
+                  <p style={styles.itemTexto}>{item.telefone}</p>
+                  <button onClick={() => removerCliente(item.id)} style={styles.botaoDangerInline}>
                     Remover
                   </button>
                 </div>
@@ -1112,52 +735,42 @@ export default function App() {
 
         {tela === "servicos" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Serviços
-            </h1>
+            <h1 style={styles.mainTitulo}>Serviços</h1>
 
-            <div style={panelStyle(theme)}>
+            <div style={styles.cardBloco}>
               <input
                 placeholder="Nome do serviço"
                 value={nomeServico}
                 onChange={(e) => setNomeServico(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="Preço"
                 value={preco}
                 onChange={(e) => setPreco(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="Duração ex: 45min"
                 value={duracao}
                 onChange={(e) => setDuracao(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
-              <button onClick={adicionarServico} style={primaryButton(theme)}>
+              <button onClick={adicionarServico} style={styles.botaoGoldInline}>
                 Adicionar serviço
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-                marginTop: "20px",
-              }}
-            >
+            <div style={styles.gridLista}>
               {servicos.map((item) => (
-                <div key={item._id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
-                  <p style={{ color: theme.textSoft }}>💰 R$ {item.preco}</p>
-                  <p style={{ color: theme.textSoft }}>⏱️ {item.duracao}</p>
-
-                  <button onClick={() => apagarServico(item._id)} style={dangerButton()}>
+                <div key={item._id} style={styles.cardItem}>
+                  <h3 style={styles.itemTitulo}>{item.nome}</h3>
+                  <p style={styles.itemTexto}>💰 R$ {item.preco}</p>
+                  <p style={styles.itemTexto}>⏱️ {item.duracao || "Sem duração"}</p>
+                  <button onClick={() => apagarServico(item._id)} style={styles.botaoDangerInline}>
                     Apagar
                   </button>
                 </div>
@@ -1168,37 +781,35 @@ export default function App() {
 
         {tela === "funcionarios" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Funcionários
-            </h1>
+            <h1 style={styles.mainTitulo}>Funcionários</h1>
 
-            <div style={panelStyle(theme)}>
+            <div style={styles.cardBloco}>
               <input
                 placeholder="Nome"
                 value={novoFuncionarioNome}
                 onChange={(e) => setNovoFuncionarioNome(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="Cargo"
                 value={novoFuncionarioCargo}
                 onChange={(e) => setNovoFuncionarioCargo(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="Especialidade"
                 value={novoFuncionarioEspecialidade}
                 onChange={(e) => setNovoFuncionarioEspecialidade(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 placeholder="WhatsApp"
                 value={novoFuncionarioWhatsapp}
                 onChange={(e) => setNovoFuncionarioWhatsapp(formatarTelefone(e.target.value))}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <div style={{ marginBottom: "12px" }}>
@@ -1206,51 +817,36 @@ export default function App() {
                   type="file"
                   accept="image/*"
                   onChange={aoTrocarFotoFuncionario}
-                  style={{ color: theme.text }}
+                  style={{ color: "#fff" }}
                 />
               </div>
 
-              <button onClick={adicionarFuncionario} style={primaryButton(theme)}>
+              <button onClick={adicionarFuncionario} style={styles.botaoGoldInline}>
                 Adicionar funcionário
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-                marginTop: "20px",
-              }}
-            >
+            <div style={styles.gridLista}>
               {funcionarios.map((item) => (
-                <div key={item.id} style={panelStyle(theme)}>
-                  {item.foto && (
-                    <img
-                      src={item.foto}
-                      alt={item.nome}
-                      style={{
-                        width: "70px",
-                        height: "70px",
-                        borderRadius: "16px",
-                        objectFit: "cover",
-                        marginBottom: "10px",
-                      }}
-                    />
-                  )}
+                <div key={item.id} style={styles.cardItem}>
+                  {item.foto && <img src={item.foto} alt={item.nome} style={styles.funcionarioFoto} />}
+                  <h3 style={styles.itemTitulo}>{item.nome}</h3>
+                  <p style={styles.itemTexto}>{item.cargo}</p>
+                  <p style={styles.itemTexto}>{item.especialidade}</p>
+                  <p style={styles.itemTexto}>{item.whatsapp}</p>
+                  <p style={{ ...styles.itemTexto, color: item.ativo ? "#22c55e" : "#ef4444" }}>
+                    {item.ativo ? "Ativo" : "Inativo"}
+                  </p>
 
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.nome}</h3>
-                  <p style={{ color: theme.textSoft }}>{item.cargo}</p>
-                  <p style={{ color: theme.textSoft }}>{item.especialidade}</p>
-                  <p style={{ color: theme.textSoft }}>{item.whatsapp}</p>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <button onClick={() => toggleFuncionario(item.id)} style={styles.botaoGoldInline}>
+                      {item.ativo ? "Desativar" : "Ativar"}
+                    </button>
 
-                  <button onClick={() => toggleFuncionario(item.id)} style={primaryButton(theme)}>
-                    {item.ativo ? "Desativar" : "Ativar"}
-                  </button>
-
-                  <button onClick={() => removerFuncionario(item.id)} style={dangerButton()}>
-                    Remover
-                  </button>
+                    <button onClick={() => removerFuncionario(item.id)} style={styles.botaoDangerInline}>
+                      Remover
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1259,15 +855,13 @@ export default function App() {
 
         {tela === "agendamentos" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Agendamentos
-            </h1>
+            <h1 style={styles.mainTitulo}>Agendamentos</h1>
 
-            <div style={panelStyle(theme)}>
+            <div style={styles.cardBloco}>
               <select
                 value={agendamentoCliente}
                 onChange={(e) => setAgendamentoCliente(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               >
                 <option value="">Selecione o cliente</option>
                 {clientes.map((item) => (
@@ -1280,7 +874,7 @@ export default function App() {
               <select
                 value={agendamentoServico}
                 onChange={(e) => setAgendamentoServico(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               >
                 <option value="">Selecione o serviço</option>
                 {servicos.map((item) => (
@@ -1293,7 +887,7 @@ export default function App() {
               <select
                 value={agendamentoProfissional}
                 onChange={(e) => setAgendamentoProfissional(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               >
                 <option value="">Selecione o profissional</option>
                 {funcionarios
@@ -1309,39 +903,32 @@ export default function App() {
                 type="date"
                 value={agendamentoData}
                 onChange={(e) => setAgendamentoData(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
               <input
                 type="time"
                 value={agendamentoHorario}
                 onChange={(e) => setAgendamentoHorario(e.target.value)}
-                style={inputStyle(theme)}
+                style={styles.input}
               />
 
-              <button onClick={adicionarAgendamentoInterno} style={primaryButton(theme)}>
+              <button onClick={adicionarAgendamentoInterno} style={styles.botaoGoldInline}>
                 Adicionar agendamento
               </button>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
-                gap: "18px",
-                marginTop: "20px",
-              }}
-            >
+            <div style={styles.gridLista}>
               {agendamentos.map((item) => (
-                <div key={item.id} style={panelStyle(theme)}>
-                  <h3 style={{ color: theme.text, marginTop: 0 }}>{item.cliente}</h3>
-                  <p style={{ color: theme.textSoft }}>✂️ {item.servico}</p>
-                  <p style={{ color: theme.textSoft }}>👨‍💼 {item.profissional}</p>
-                  <p style={{ color: theme.textSoft }}>📅 {item.data}</p>
-                  <p style={{ color: theme.textSoft }}>🕒 {item.horario}</p>
+                <div key={item._id || item.id} style={styles.cardItem}>
+                  <h3 style={styles.itemTitulo}>{item.cliente}</h3>
+                  <p style={styles.itemTexto}>✂️ {item.servico}</p>
+                  {item.profissional && <p style={styles.itemTexto}>👨‍💼 {item.profissional}</p>}
+                  <p style={styles.itemTexto}>📅 {item.data}</p>
+                  <p style={styles.itemTexto}>🕒 {item.horario}</p>
 
-                  <button onClick={() => removerAgendamento(item.id)} style={dangerButton()}>
-                    Cancelar
+                  <button onClick={() => removerAgendamento(item._id || item.id)} style={styles.botaoDangerInline}>
+                    Remover da tela
                   </button>
                 </div>
               ))}
@@ -1351,81 +938,78 @@ export default function App() {
 
         {tela === "barbearia" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Configurações da Barbearia
-            </h1>
+            <h1 style={styles.mainTitulo}>Configurações da Barbearia</h1>
 
-            <div style={panelStyle(theme)}>
+            <div style={styles.cardBloco}>
               <input
                 placeholder="Nome da barbearia"
                 value={perfil.nomeBarbearia}
-                onChange={(e) =>
-                  setPerfil({
-                    ...perfil,
-                    nomeBarbearia: e.target.value,
-                  })
-                }
-                style={inputStyle(theme)}
+                onChange={(e) => setPerfil({ ...perfil, nomeBarbearia: e.target.value })}
+                style={styles.input}
               />
 
               <input
                 placeholder="WhatsApp"
                 value={perfil.whatsapp}
-                onChange={(e) =>
-                  setPerfil({
-                    ...perfil,
-                    whatsapp: e.target.value,
-                  })
-                }
-                style={inputStyle(theme)}
+                onChange={(e) => setPerfil({ ...perfil, whatsapp: e.target.value })}
+                style={styles.input}
               />
 
               <input
                 placeholder="Slug do link ex: studio-barber"
                 value={perfil.slug}
-                onChange={(e) =>
-                  setPerfil({
-                    ...perfil,
-                    slug: e.target.value,
-                  })
-                }
-                style={inputStyle(theme)}
+                onChange={(e) => setPerfil({ ...perfil, slug: gerarSlug(e.target.value) })}
+                style={styles.input}
               />
 
-              <input
-                type="time"
-                value={perfil.abertura}
-                onChange={(e) =>
-                  setPerfil({
-                    ...perfil,
-                    abertura: e.target.value,
-                  })
-                }
-                style={inputStyle(theme)}
-              />
+              <div style={styles.grid2}>
+                <div>
+                  <label style={styles.labelMini}>Abertura</label>
+                  <input
+                    type="time"
+                    value={perfil.abertura}
+                    onChange={(e) => setPerfil({ ...perfil, abertura: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
 
-              <input
-                type="time"
-                value={perfil.fechamento}
-                onChange={(e) =>
-                  setPerfil({
-                    ...perfil,
-                    fechamento: e.target.value,
-                  })
-                }
-                style={inputStyle(theme)}
-              />
-
-              <div style={{ marginBottom: "12px" }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={aoTrocarLogo}
-                  style={{ color: theme.text }}
-                />
+                <div>
+                  <label style={styles.labelMini}>Fechamento</label>
+                  <input
+                    type="time"
+                    value={perfil.fechamento}
+                    onChange={(e) => setPerfil({ ...perfil, fechamento: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
               </div>
 
-              <button onClick={salvarPerfil} style={primaryButton(theme)}>
+              <div style={styles.cardDias}>
+                {Object.keys(perfil.diasFuncionamento).map((dia) => (
+                  <label key={dia} style={styles.diaItem}>
+                    <input
+                      type="checkbox"
+                      checked={perfil.diasFuncionamento[dia]}
+                      onChange={(e) =>
+                        setPerfil({
+                          ...perfil,
+                          diasFuncionamento: {
+                            ...perfil.diasFuncionamento,
+                            [dia]: e.target.checked,
+                          },
+                        })
+                      }
+                    />
+                    <span>{capitalizar(dia)}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ marginBottom: "12px" }}>
+                <input type="file" accept="image/*" onChange={aoTrocarLogo} style={{ color: "#fff" }} />
+              </div>
+
+              <button onClick={salvarPerfil} style={styles.botaoGoldInline}>
                 Salvar configurações
               </button>
             </div>
@@ -1434,18 +1018,16 @@ export default function App() {
 
         {tela === "link" && (
           <>
-            <h1 style={{ color: theme.text, marginBottom: "24px" }}>
-              Link do Cliente
-            </h1>
+            <h1 style={styles.mainTitulo}>Link do Cliente</h1>
 
-            <div style={panelStyle(theme)}>
-              <p style={{ color: theme.textSoft, lineHeight: "1.7" }}>
-                Esse é o link que você pode mandar para o cliente agendar atendimento.
+            <div style={styles.cardBloco}>
+              <p style={styles.itemTexto}>
+                Esse é o link que você envia para o cliente agendar atendimento.
               </p>
 
-              <div style={linkBoxStyle(theme)}>{linkPublico}</div>
+              <div style={styles.linkBox}>{linkPublico}</div>
 
-              <button onClick={() => navigator.clipboard.writeText(linkPublico)} style={primaryButton(theme)}>
+              <button onClick={() => navigator.clipboard.writeText(linkPublico)} style={styles.botaoGoldInline}>
                 Copiar link
               </button>
             </div>
@@ -1457,74 +1039,255 @@ export default function App() {
 }
 
 function PaginaPublica({ slug }) {
-  const [perfilPublico, setPerfilPublico] = useState({
-    nomeBarbearia: "Studio Barber",
-    whatsapp: "",
-    slug,
-  });
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [barbearia, setBarbearia] = useState(null);
+  const [horariosOcupados, setHorariosOcupados] = useState([]);
+
+  const [cliente, setCliente] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [servico, setServico] = useState("");
+  const [data, setData] = useState("");
+  const [horario, setHorario] = useState("");
 
   useEffect(() => {
-    try {
-      const todasChaves = Object.keys(localStorage);
-      const chavePerfil = todasChaves.find((chave) => chave.startsWith("perfil_studio_barber_"));
-
-      if (chavePerfil) {
-        const perfilSalvo = JSON.parse(localStorage.getItem(chavePerfil) || "{}");
-        setPerfilPublico({
-          nomeBarbearia: perfilSalvo.nomeBarbearia || "Studio Barber",
-          whatsapp: perfilSalvo.whatsapp || "",
-          slug: perfilSalvo.slug || slug,
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao carregar perfil público:", error);
-    }
+    carregarBarbearia();
   }, [slug]);
 
-  function abrirWhatsApp(servico) {
-    const numero = (perfilPublico.whatsapp || "").replace(/\D/g, "");
-    if (!numero) {
-      alert("WhatsApp da barbearia não configurado.");
+  useEffect(() => {
+    if (!barbearia?.userId || !data) return;
+    carregarHorariosOcupados();
+  }, [barbearia, data]);
+
+  async function carregarBarbearia() {
+    setCarregando(true);
+    setErro("");
+
+    try {
+      const res = await axios.get(`${backend}/public/barbearias/${slug}`, {
+        timeout: 60000,
+      });
+
+      setBarbearia(res.data);
+    } catch (error) {
+      setErro(error.response?.data?.message || "Erro ao carregar página da barbearia.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  async function carregarHorariosOcupados() {
+    try {
+      const res = await axios.get(`${backend}/public/horarios-ocupados`, {
+        params: {
+          userId: barbearia.userId,
+          data,
+        },
+        timeout: 60000,
+      });
+
+      setHorariosOcupados(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  function formatarTelefonePublico(valor) {
+    const numeros = valor.replace(/\D/g, "").slice(0, 11);
+
+    if (numeros.length <= 10) {
+      return numeros
+        .replace(/^(\d{2})(\d)/g, "($1) $2")
+        .replace(/(\d{4})(\d)/, "$1-$2");
+    }
+
+    return numeros
+      .replace(/^(\d{2})(\d)/g, "($1) $2")
+      .replace(/(\d{5})(\d)/, "$1-$2");
+  }
+
+  function diaDisponivel(dataEscolhida) {
+    if (!barbearia?.diasFuncionamento || !dataEscolhida) return true;
+
+    const dia = new Date(`${dataEscolhida}T12:00:00`).getDay();
+    const mapa = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+
+    return Boolean(barbearia.diasFuncionamento[mapa[dia]]);
+  }
+
+  function gerarHorarios() {
+    if (!barbearia?.abertura || !barbearia?.fechamento) return [];
+
+    const [horaInicio, minutoInicio] = barbearia.abertura.split(":").map(Number);
+    const [horaFim, minutoFim] = barbearia.fechamento.split(":").map(Number);
+
+    let atual = horaInicio * 60 + minutoInicio;
+    const fim = horaFim * 60 + minutoFim;
+    const lista = [];
+
+    while (atual < fim) {
+      const h = String(Math.floor(atual / 60)).padStart(2, "0");
+      const m = String(atual % 60).padStart(2, "0");
+      lista.push(`${h}:${m}`);
+      atual += 30;
+    }
+
+    return lista;
+  }
+
+  async function realizarAgendamento() {
+    if (!cliente.trim() || !telefone.trim() || !servico || !data || !horario) {
+      alert("Preencha todos os campos.");
       return;
     }
 
-    const texto = encodeURIComponent(
-      `Olá! Quero agendar ${servico} na barbearia ${perfilPublico.nomeBarbearia}.`
-    );
+    if (!diaDisponivel(data)) {
+      alert("A barbearia não atende nesse dia.");
+      return;
+    }
 
-    window.open(`https://wa.me/${numero}?text=${texto}`, "_blank");
+    if (horariosOcupados.includes(horario)) {
+      alert("Esse horário já foi ocupado.");
+      return;
+    }
+
+    try {
+      const res = await axios.post(
+        `${backend}/public/agendar`,
+        {
+          userId: barbearia.userId,
+          cliente: cliente.trim(),
+          telefone: telefone.trim(),
+          servico,
+          data,
+          horario,
+        },
+        { timeout: 60000 }
+      );
+
+      const whatsapp = String(res.data?.whatsapp || "").replace(/\D/g, "");
+      if (whatsapp) {
+        const texto = encodeURIComponent(
+          `Olá! Sou ${cliente.trim()} e acabei de agendar ${servico} para ${data} às ${horario}.`
+        );
+        window.open(`https://wa.me/${whatsapp}?text=${texto}`, "_blank");
+      }
+
+      alert("Agendamento realizado com sucesso.");
+
+      setCliente("");
+      setTelefone("");
+      setServico("");
+      setData("");
+      setHorario("");
+      setHorariosOcupados((prev) => [...prev, horario]);
+    } catch (error) {
+      alert(error.response?.data?.message || "Erro ao realizar agendamento.");
+    }
   }
+
+  if (carregando) {
+    return (
+      <div style={styles.publicWrap}>
+        <div style={styles.publicContainer}>
+          <div style={styles.publicCard}>
+            <h1 style={styles.publicTitulo}>Carregando agenda...</h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (erro || !barbearia) {
+    return (
+      <div style={styles.publicWrap}>
+        <div style={styles.publicContainer}>
+          <div style={styles.publicCard}>
+            <h1 style={styles.publicTitulo}>Studio Barber</h1>
+            <p style={styles.publicSubtitulo}>{erro || "Barbearia não encontrada."}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const horarios = gerarHorarios();
 
   return (
     <div style={styles.publicWrap}>
       <div style={styles.publicContainer}>
         <div style={styles.publicCard}>
-          <div style={styles.publicLogo}>💈</div>
+          {barbearia.logoBarbearia ? (
+            <img src={barbearia.logoBarbearia} alt="Logo" style={styles.publicLogoImg} />
+          ) : (
+            <div style={styles.publicLogo}>💈</div>
+          )}
 
-          <h1 style={styles.publicTitulo}>{perfilPublico.nomeBarbearia}</h1>
+          <h1 style={styles.publicTitulo}>{barbearia.nomeBarbearia}</h1>
           <p style={styles.publicSubtitulo}>Agende seu horário com facilidade</p>
 
           <div style={styles.publicInfo}>
             <strong>Link:</strong> {slug}
           </div>
 
-          <div style={styles.publicServicos}>
-            <button onClick={() => abrirWhatsApp("Corte")} style={styles.publicBtn}>
-              Agendar Corte
-            </button>
+          <input
+            placeholder="Seu nome"
+            value={cliente}
+            onChange={(e) => setCliente(e.target.value)}
+            style={styles.input}
+          />
 
-            <button onClick={() => abrirWhatsApp("Barba")} style={styles.publicBtnSec}>
-              Agendar Barba
-            </button>
+          <input
+            placeholder="Seu telefone"
+            value={telefone}
+            onChange={(e) => setTelefone(formatarTelefonePublico(e.target.value))}
+            style={styles.input}
+          />
 
-            <button onClick={() => abrirWhatsApp("Corte + Barba")} style={styles.publicBtnSec}>
-              Agendar Corte + Barba
-            </button>
-          </div>
+          <select
+            value={servico}
+            onChange={(e) => setServico(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Selecione o serviço</option>
+            {(barbearia.servicos || []).map((item) => (
+              <option key={item._id} value={item.nome}>
+                {item.nome} - R$ {Number(item.preco || 0).toFixed(2)}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            style={styles.input}
+          />
+
+          <select
+            value={horario}
+            onChange={(e) => setHorario(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Selecione o horário</option>
+            {horarios.map((h) => (
+              <option key={h} value={h} disabled={horariosOcupados.includes(h)}>
+                {h}{horariosOcupados.includes(h) ? " - ocupado" : ""}
+              </option>
+            ))}
+          </select>
+
+          <button onClick={realizarAgendamento} style={styles.publicBtn}>
+            Confirmar agendamento
+          </button>
         </div>
       </div>
     </div>
   );
+}
+
+function capitalizar(texto) {
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function menuStyle(ativo, theme) {
@@ -1532,34 +1295,13 @@ function menuStyle(ativo, theme) {
     width: "100%",
     textAlign: "left",
     background: ativo ? theme.primary : "transparent",
-    color: ativo ? "#111827" : theme.text,
+    color: ativo ? theme.activeText : theme.text,
     border: "none",
     padding: "14px",
     borderRadius: "12px",
     fontWeight: "800",
     cursor: "pointer",
     marginBottom: "10px",
-  };
-}
-
-function cardInfoStyle(theme) {
-  return {
-    background: theme.card,
-    border: `1px solid ${theme.border}`,
-    borderRadius: "18px",
-    padding: "22px",
-    boxShadow: theme.shadow,
-  };
-}
-
-function panelStyle(theme) {
-  return {
-    background: theme.card,
-    border: `1px solid ${theme.border}`,
-    borderRadius: "18px",
-    padding: "22px",
-    boxShadow: theme.shadow,
-    marginTop: "18px",
   };
 }
 
@@ -1577,33 +1319,312 @@ function inputStyle(theme) {
   };
 }
 
-function linkBoxStyle(theme) {
-  return {
-    padding: "14px",
-    borderRadius: "12px",
-    background: theme.input,
-    border: `1px solid ${theme.border}`,
-    color: theme.text,
-    wordBreak: "break-all",
-    margin: "14px 0",
-  };
-}
-
-function primaryButton(theme) {
-  return {
-    background: theme.primary,
+const styles = {
+  homeWrap: {
+    minHeight: "100vh",
+    background: "#020617",
+    color: "#fff",
+    padding: "40px 20px",
+    fontFamily: "Arial, sans-serif",
+  },
+  container: {
+    maxWidth: "1200px",
+    margin: "0 auto",
+  },
+  topoHome: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "60px",
+    flexWrap: "wrap",
+    gap: "16px",
+  },
+  logoTitulo: {
+    margin: 0,
+    fontSize: "34px",
+    fontWeight: "900",
+    color: "#f59e0b",
+  },
+  hero: {
+    textAlign: "center",
+    marginBottom: "80px",
+  },
+  heroTitulo: {
+    fontSize: "58px",
+    lineHeight: "1.1",
+    margin: 0,
+    fontWeight: "900",
+  },
+  heroTexto: {
+    maxWidth: "760px",
+    margin: "24px auto",
+    color: "#94a3b8",
+    fontSize: "20px",
+    lineHeight: "1.6",
+  },
+  heroBotoes: {
+    display: "flex",
+    gap: "16px",
+    justifyContent: "center",
+    flexWrap: "wrap",
+  },
+  gridCards: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+    gap: "18px",
+  },
+  cardHome: {
+    background: "#111827",
+    padding: "24px",
+    borderRadius: "18px",
+    border: "1px solid #1f2937",
+  },
+  cardTitulo: {
+    marginTop: 0,
+    color: "#f59e0b",
+    fontSize: "22px",
+  },
+  cardTexto: {
+    color: "#94a3b8",
+    marginBottom: 0,
+    lineHeight: "1.6",
+  },
+  botaoGoldInline: {
+    background: "#f59e0b",
     color: "#111827",
     border: "none",
-    padding: "14px 18px",
+    padding: "14px 24px",
     borderRadius: "12px",
-    fontWeight: "900",
+    fontWeight: "800",
     cursor: "pointer",
-    marginRight: "10px",
-  };
-}
-
-function dangerButton() {
-  return {
+  },
+  botaoSecundarioInline: {
+    background: "transparent",
+    color: "#fff",
+    border: "1px solid #334155",
+    padding: "14px 24px",
+    borderRadius: "12px",
+    fontWeight: "800",
+    cursor: "pointer",
+  },
+  loginWrap: {
+    minHeight: "100vh",
+    background: "#020617",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "30px",
+    fontFamily: "Arial, sans-serif",
+  },
+  loginCard: {
+    width: "100%",
+    maxWidth: "460px",
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "24px",
+    padding: "34px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+  },
+  loginLogo: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "18px",
+    objectFit: "cover",
+  },
+  loginLogoFake: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "18px",
+    background: "#f59e0b",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "34px",
+    margin: "0 auto",
+  },
+  loginTitulo: {
+    textAlign: "center",
+    color: "#ffffff",
+    fontSize: "34px",
+    marginTop: "18px",
+    marginBottom: "10px",
+  },
+  loginTexto: {
+    textAlign: "center",
+    color: "#94a3b8",
+    marginBottom: "24px",
+  },
+  botaoOlho: {
+    position: "absolute",
+    right: "14px",
+    top: "13px",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    fontSize: "18px",
+  },
+  botaoGold: {
+    width: "100%",
+    background: "#f59e0b",
+    color: "#111827",
+    border: "none",
+    padding: "16px",
+    borderRadius: "14px",
+    fontWeight: "800",
+    cursor: "pointer",
+  },
+  botaoSecundario: {
+    width: "100%",
+    background: "transparent",
+    color: "#fff",
+    border: "1px solid #334155",
+    padding: "16px",
+    borderRadius: "14px",
+    fontWeight: "800",
+    cursor: "pointer",
+  },
+  botaoVoltar: {
+    width: "100%",
+    background: "transparent",
+    color: "#94a3b8",
+    border: "none",
+    padding: "12px",
+    cursor: "pointer",
+    marginTop: "10px",
+  },
+  painelWrap: {
+    display: "flex",
+    minHeight: "100vh",
+    background: "#020617",
+    fontFamily: "Arial, sans-serif",
+  },
+  sidebar: {
+    width: "270px",
+    background: "#020617",
+    borderRight: "1px solid #334155",
+    padding: "24px",
+  },
+  sidebarTopo: {
+    textAlign: "center",
+    marginBottom: "26px",
+  },
+  logoImg: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "18px",
+    objectFit: "cover",
+  },
+  logoFake: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "18px",
+    background: "#f59e0b",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "34px",
+    margin: "0 auto",
+  },
+  sidebarTitulo: {
+    color: "#f59e0b",
+    marginTop: "14px",
+    marginBottom: "6px",
+  },
+  sidebarEmail: {
+    color: "#94a3b8",
+    fontSize: "14px",
+  },
+  botaoTrocar: {
+    width: "100%",
+    marginTop: "24px",
+    background: "#111827",
+    color: "#fff",
+    border: "1px solid #334155",
+    padding: "14px",
+    borderRadius: "12px",
+    fontWeight: "800",
+    cursor: "pointer",
+  },
+  botaoDangerFull: {
+    width: "100%",
+    marginTop: "10px",
+    background: "#dc2626",
+    color: "#fff",
+    border: "none",
+    padding: "14px",
+    borderRadius: "12px",
+    fontWeight: "800",
+    cursor: "pointer",
+  },
+  main: {
+    flex: 1,
+    padding: "30px",
+    background: "#08111f",
+  },
+  mainTitulo: {
+    color: "#ffffff",
+    marginBottom: "24px",
+  },
+  gridResumo: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+    gap: "18px",
+    marginBottom: "24px",
+  },
+  cardResumo: {
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "18px",
+    padding: "22px",
+  },
+  cardResumoLabel: {
+    color: "#94a3b8",
+    marginTop: 0,
+  },
+  cardResumoValor: {
+    color: "#ffffff",
+    marginBottom: 0,
+  },
+  cardBloco: {
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "18px",
+    padding: "22px",
+    marginTop: "18px",
+  },
+  subtitulo: {
+    color: "#ffffff",
+    marginTop: 0,
+  },
+  linkBox: {
+    padding: "14px",
+    borderRadius: "12px",
+    background: "#0f172a",
+    border: "1px solid #334155",
+    color: "#fff",
+    wordBreak: "break-all",
+    margin: "14px 0",
+  },
+  gridLista: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+    gap: "18px",
+    marginTop: "20px",
+  },
+  cardItem: {
+    background: "#111827",
+    border: "1px solid #334155",
+    borderRadius: "18px",
+    padding: "22px",
+  },
+  itemTitulo: {
+    color: "#ffffff",
+    marginTop: 0,
+  },
+  itemTexto: {
+    color: "#94a3b8",
+  },
+  botaoDangerInline: {
     background: "#dc2626",
     color: "#fff",
     border: "none",
@@ -1612,10 +1633,42 @@ function dangerButton() {
     fontWeight: "800",
     cursor: "pointer",
     marginTop: "10px",
-  };
-}
-
-const styles = {
+  },
+  funcionarioFoto: {
+    width: "70px",
+    height: "70px",
+    borderRadius: "16px",
+    objectFit: "cover",
+    marginBottom: "10px",
+  },
+  grid2: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
+  },
+  labelMini: {
+    display: "block",
+    color: "#94a3b8",
+    marginBottom: "6px",
+    fontSize: "14px",
+  },
+  cardDias: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))",
+    gap: "10px",
+    marginBottom: "14px",
+    marginTop: "6px",
+  },
+  diaItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    color: "#fff",
+    background: "#0f172a",
+    border: "1px solid #334155",
+    borderRadius: "12px",
+    padding: "10px 12px",
+  },
   publicWrap: {
     minHeight: "100vh",
     background: "#020617",
@@ -1646,6 +1699,14 @@ const styles = {
     fontSize: "38px",
     margin: "0 auto 18px",
   },
+  publicLogoImg: {
+    width: "86px",
+    height: "86px",
+    borderRadius: "20px",
+    objectFit: "cover",
+    margin: "0 auto 18px",
+    display: "block",
+  },
   publicTitulo: {
     color: "#f59e0b",
     fontSize: "42px",
@@ -1660,10 +1721,6 @@ const styles = {
     color: "#cbd5e1",
     marginBottom: "24px",
   },
-  publicServicos: {
-    display: "grid",
-    gap: "12px",
-  },
   publicBtn: {
     width: "100%",
     background: "#f59e0b",
@@ -1672,17 +1729,6 @@ const styles = {
     padding: "16px",
     borderRadius: "14px",
     fontWeight: "900",
-    cursor: "pointer",
-    fontSize: "16px",
-  },
-  publicBtnSec: {
-    width: "100%",
-    background: "transparent",
-    color: "#fff",
-    border: "1px solid #334155",
-    padding: "16px",
-    borderRadius: "14px",
-    fontWeight: "800",
     cursor: "pointer",
     fontSize: "16px",
   },
