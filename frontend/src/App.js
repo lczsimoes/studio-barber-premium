@@ -14,7 +14,6 @@ const temaDark = {
   textSoft: "#94a3b8",
   primary: "#f59e0b",
   activeText: "#111827",
-  shadow: "0 10px 30px rgba(0,0,0,0.35)",
 };
 
 const diasPadrao = {
@@ -115,6 +114,10 @@ export default function App() {
       .replace(/[^a-z0-9\s-]/g, "")
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-");
+  }
+
+  function capitalizar(texto) {
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
   }
 
   function formatarTelefone(valor) {
@@ -298,7 +301,10 @@ export default function App() {
   }
 
   async function salvarPerfil() {
-    if (!usuario?.id) return;
+    if (!usuario?.id) {
+      alert("Usuário não encontrado.");
+      return;
+    }
 
     try {
       const payload = {
@@ -314,7 +320,7 @@ export default function App() {
 
       const perfilSalvo = res.data?.perfil || payload;
 
-      const novoPerfil = {
+      setPerfil({
         nomeBarbearia: perfilSalvo.nomeBarbearia || "Studio Barber",
         logoBarbearia: perfilSalvo.logoBarbearia || "",
         whatsapp: perfilSalvo.whatsapp || "",
@@ -322,16 +328,16 @@ export default function App() {
         abertura: perfilSalvo.abertura || "09:00",
         fechamento: perfilSalvo.fechamento || "19:00",
         diasFuncionamento: perfilSalvo.diasFuncionamento || diasPadrao,
-      };
+      });
 
-      setPerfil(novoPerfil);
       alert("Perfil salvo com sucesso.");
     } catch (error) {
+      console.error("ERRO AO SALVAR PERFIL", error);
       alert(error.response?.data?.message || "Erro ao salvar perfil.");
     }
   }
 
-  function adicionarCliente() {
+    function adicionarCliente() {
     if (!nomeCliente.trim() || !telefoneCliente.trim()) {
       alert("Preencha nome e telefone do cliente.");
       return;
@@ -477,7 +483,9 @@ export default function App() {
   }
 
   function removerAgendamento(id) {
-    const atualizados = agendamentos.filter((item) => item._id !== id && item.id !== id);
+    const atualizados = agendamentos.filter(
+      (item) => item._id !== id && item.id !== id
+    );
     setAgendamentos(atualizados);
   }
 
@@ -551,11 +559,7 @@ export default function App() {
         <div style={styles.loginCard}>
           <div style={{ textAlign: "center", marginBottom: "30px" }}>
             {perfil.logoBarbearia ? (
-              <img
-                src={perfil.logoBarbearia}
-                alt="Logo"
-                style={styles.loginLogo}
-              />
+              <img src={perfil.logoBarbearia} alt="Logo" style={styles.loginLogo} />
             ) : (
               <div style={styles.loginLogoFake}>💈</div>
             )}
@@ -779,7 +783,7 @@ export default function App() {
           </>
         )}
 
-        {tela === "funcionarios" && (
+                {tela === "funcionarios" && (
           <>
             <h1 style={styles.mainTitulo}>Funcionários</h1>
 
@@ -927,7 +931,10 @@ export default function App() {
                   <p style={styles.itemTexto}>📅 {item.data}</p>
                   <p style={styles.itemTexto}>🕒 {item.horario}</p>
 
-                  <button onClick={() => removerAgendamento(item._id || item.id)} style={styles.botaoDangerInline}>
+                  <button
+                    onClick={() => removerAgendamento(item._id || item.id)}
+                    style={styles.botaoDangerInline}
+                  >
                     Remover da tela
                   </button>
                 </div>
@@ -1244,11 +1251,7 @@ function PaginaPublica({ slug }) {
             style={styles.input}
           />
 
-          <select
-            value={servico}
-            onChange={(e) => setServico(e.target.value)}
-            style={styles.input}
-          >
+          <select value={servico} onChange={(e) => setServico(e.target.value)} style={styles.input}>
             <option value="">Selecione o serviço</option>
             {(barbearia.servicos || []).map((item) => (
               <option key={item._id} value={item.nome}>
@@ -1264,11 +1267,7 @@ function PaginaPublica({ slug }) {
             style={styles.input}
           />
 
-          <select
-            value={horario}
-            onChange={(e) => setHorario(e.target.value)}
-            style={styles.input}
-          >
+          <select value={horario} onChange={(e) => setHorario(e.target.value)} style={styles.input}>
             <option value="">Selecione o horário</option>
             {horarios.map((h) => (
               <option key={h} value={h} disabled={horariosOcupados.includes(h)}>
@@ -1284,10 +1283,6 @@ function PaginaPublica({ slug }) {
       </div>
     </div>
   );
-}
-
-function capitalizar(texto) {
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function menuStyle(ativo, theme) {
@@ -1732,4 +1727,16 @@ const styles = {
     cursor: "pointer",
     fontSize: "16px",
   },
+  input: {
+    width: "100%",
+    padding: "14px",
+    borderRadius: "12px",
+    border: "1px solid #334155",
+    marginBottom: "12px",
+    background: "#0f172a",
+    color: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  },
 };
+
